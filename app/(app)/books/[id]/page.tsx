@@ -61,6 +61,10 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [editPages, setEditPages] = useState("");
   const [editMinutes, setEditMinutes] = useState("");
+  const [addingSession, setAddingSession] = useState(false);
+  const [newSessionDate, setNewSessionDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [newSessionPages, setNewSessionPages] = useState("");
+  const [newSessionMinutes, setNewSessionMinutes] = useState("");
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -157,6 +161,23 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
     const supabase = createClient();
     await supabase.from("reading_sessions").delete().eq("id", sessionId);
     setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+  }
+
+  async function addSession() {
+    if (!newSessionDate) return;
+    const supabase = createClient();
+    await supabase.from("reading_sessions").insert({
+      user_id: USER_ID,
+      user_book_id: id,
+      date: newSessionDate,
+      duration_seconds: (parseInt(newSessionMinutes) || 0) * 60,
+      pages_read: parseInt(newSessionPages) || 0,
+    });
+    setAddingSession(false);
+    setNewSessionPages("");
+    setNewSessionMinutes("");
+    setNewSessionDate(new Date().toISOString().split("T")[0]);
+    load();
   }
 
   if (loading) {
@@ -355,9 +376,22 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
       </div>
 
       {/* Session history */}
-      {sessions.length > 0 && (
-        <div className="bg-[#F7F4F0] rounded-[24px] p-5 mb-4">
-          <p className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-3">Reading Sessions</p>
+      <div className="bg-[#F7F4F0] rounded-[24px] p-5 mb-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-xs text-[#6B6B6B] uppercase tracking-wide">Reading Sessions</p>
+          <button
+            onClick={() => setAddingSession(true)}
+            className="w-7 h-7 flex items-center justify-center rounded-full bg-[#E8599A] text-white hover:bg-[#d44d8a] transition-colors flex-shrink-0"
+            title="Log a session"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
+        </div>
+        {sessions.length === 0 ? (
+          <p className="text-xs text-[#6B6B6B] text-center py-3">No sessions logged yet</p>
+        ) : (
           <div className="flex flex-col gap-2">
             {sessions.map((s) => (
               <div key={s.id} className="flex items-center py-2 border-b border-gray-100 last:border-0 gap-2">
@@ -387,8 +421,59 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
               </div>
             ))}
           </div>
+        )}
+      </div>
+
+      {/* Add session modal */}
+      <Modal
+        open={addingSession}
+        onClose={() => { setAddingSession(false); setNewSessionPages(""); setNewSessionMinutes(""); }}
+        title="Log a session"
+      >
+        <div className="flex flex-col gap-4">
+          <div>
+            <label className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1 block">Date</label>
+            <input
+              type="date"
+              value={newSessionDate}
+              max={new Date().toISOString().split("T")[0]}
+              onChange={(e) => setNewSessionDate(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1 block">
+                Pages read <span className="normal-case">(optional)</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={newSessionPages}
+                placeholder="0"
+                onChange={(e) => setNewSessionPages(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1 block">
+                Minutes <span className="normal-case">(optional)</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                value={newSessionMinutes}
+                placeholder="0"
+                onChange={(e) => setNewSessionMinutes(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]"
+              />
+            </div>
+          </div>
+          <Button onClick={addSession} disabled={!newSessionDate} className="w-full">
+            Log Session
+          </Button>
         </div>
-      )}
+      </Modal>
 
       {/* Edit session modal */}
       <Modal

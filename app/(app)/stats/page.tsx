@@ -65,10 +65,12 @@ export default function StatsPage() {
   // Backdating
   const [userBooks, setUserBooks] = useState<UserBookOption[]>([]);
   const [backdateDate, setBackdateDate] = useState<string | null>(null);
+  const [backdateEndDate, setBackdateEndDate] = useState("");
   const [backdateBookId, setBackdateBookId] = useState("");
   const [backdatePages, setBackdatePages] = useState("");
   const [backdateMinutes, setBackdateMinutes] = useState("");
   const [savingBackdate, setSavingBackdate] = useState(false);
+  const [addSessionEndDate, setAddSessionEndDate] = useState("");
 
   // Day sessions modal (for tapping active calendar dates)
   interface DaySession {
@@ -90,17 +92,21 @@ export default function StatsPage() {
     const supabase = createClient();
     supabase
       .from("user_books")
-      .select("id, books(title)")
+      .select("id, status, finish_date, added_at, books(title)")
       .eq("user_id", USER_ID)
-      .in("status", ["reading", "finished"])
       .then(({ data }) => {
         if (data) {
-          interface RawUB { id: string; books: { title: string } | null }
-          setUserBooks(
-            (data as unknown as RawUB[])
-              .filter((ub) => ub.books)
-              .map((ub) => ({ id: ub.id, title: ub.books!.title }))
-          );
+          interface RawUB { id: string; status: string; finish_date: string | null; added_at: string; books: { title: string } | null }
+          const statusOrder = (s: string) => s === "reading" ? 0 : s === "finished" ? 1 : 2;
+          const sorted = (data as unknown as RawUB[])
+            .filter((ub) => ub.books)
+            .sort((a, b) => {
+              const oa = statusOrder(a.status), ob = statusOrder(b.status);
+              if (oa !== ob) return oa - ob;
+              if (a.status === "finished") return (b.finish_date ?? "").localeCompare(a.finish_date ?? "");
+              return (b.added_at ?? "").localeCompare(a.added_at ?? "");
+            });
+          setUserBooks(sorted.map((ub) => ({ id: ub.id, title: ub.books!.title })));
         }
       });
   }, []);
@@ -277,7 +283,7 @@ export default function StatsPage() {
     setAvgPages(uniqueDays > 0 ? Math.round(totalPagesRead / uniqueDays) : 0);
 
     // Session records (longest / shortest)
-    const sessWithDuration = sessTyped.filter((s) => s.duration_seconds > 0);
+    const sessWithDuration = sessTyped.filter((s) => s.duration_seconds >= 60);
     if (sessWithDuration.length > 0) {
       const sortedSess = [...sessWithDuration].sort((a, b) => a.duration_seconds - b.duration_seconds);
       const sh = sortedSess[0];
@@ -325,15 +331,27 @@ export default function StatsPage() {
     if (!backdateDate || !backdateBookId) return;
     setSavingBackdate(true);
     const supabase = createClient();
-    await supabase.from("reading_sessions").insert({
-      user_id: USER_ID,
-      user_book_id: backdateBookId,
-      date: backdateDate,
-      duration_seconds: (parseInt(backdateMinutes) || 0) * 60,
-      pages_read: parseInt(backdatePages) || 0,
-    });
+
+    // Build list of dates in range
+    const start = new Date(backdateDate + "T12:00:00");
+    const end = backdateEndDate ? new Date(backdateEndDate + "T12:00:00") : start;
+    const dates: string[] = [];
+    for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      dates.push(d.toISOString().split("T")[0]);
+    }
+
+    for (const date of dates) {
+      await supabase.from("reading_sessions").insert({
+        user_id: USER_ID,
+        user_book_id: backdateBookId,
+        date,
+        duration_seconds: (parseInt(backdateMinutes) || 0) * 60,
+        pages_read: parseInt(backdatePages) || 0,
+      });
+    }
     setSavingBackdate(false);
     setBackdateDate(null);
+    setBackdateEndDate("");
     loadAllSessionDates();
     loadStats();
   }
@@ -409,26 +427,42 @@ export default function StatsPage() {
     if (!editDayDate || !backdateBookId) return;
     setSavingBackdate(true);
     const supabase = createClient();
-    const { data: newSess } = await supabase
-      .from("reading_sessions")
-      .insert({
-        user_id: USER_ID,
-        user_book_id: backdateBookId,
-        date: editDayDate,
-        duration_seconds: (parseInt(backdateMinutes) || 0) * 60,
-        pages_read: parseInt(backdatePages) || 0,
-      })
-      .select("id, duration_seconds, pages_read, user_books(id, books(title))")
-      .single();
+
+    // Build list of dates in range
+    const start = new Date(editDayDate + "T12:00:00");
+    const end = addSessionEndDate ? new Date(addSessionEndDate + "T12:00:00") : start;
+    const dates: string[] = [];
+    for (const d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      dates.push(d.toISOString().split("T")[0]);
+    }
+
+    let lastSess: unknown = null;
+    for (const date of dates) {
+      const { data } = await supabase
+        .from("reading_sessions")
+        .insert({
+          user_id: USER_ID,
+          user_book_id: backdateBookId,
+          date,
+          duration_seconds: (parseInt(backdateMinutes) || 0) * 60,
+          pages_read: parseInt(backdatePages) || 0,
+        })
+        .select("id, duration_seconds, pages_read, user_books(id, books(title))")
+        .single();
+      if (date === editDayDate) lastSess = data;
+    }
+
     setSavingBackdate(false);
     setBackdatePages("");
     setBackdateMinutes("");
-    if (newSess) {
+    setAddSessionEndDate("");
+
+    if (lastSess) {
       interface RawDaySess {
         id: string; duration_seconds: number; pages_read: number;
         user_books: { id: string; books: { title: string } | null } | null;
       }
-      const s = newSess as unknown as RawDaySess;
+      const s = lastSess as unknown as RawDaySess;
       setEditDaySessions((prev) => [...prev, {
         id: s.id,
         duration_seconds: s.duration_seconds,
@@ -547,6 +581,21 @@ export default function StatsPage() {
               <p className="text-xs text-[#6B6B6B]">Total time</p>
             </Card>
           </div>
+
+          {/* Streak calendar (always all-time dates) */}
+          <Card>
+            <p className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1">Reading</p>
+            <p className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[#E8599A] mb-3">
+              Streak
+            </p>
+            <StreakCalendar
+              activeDates={allSessionDates}
+              dateCoverMap={dateCoverMap}
+              month={calendarMonth}
+              onMonthChange={setCalendarMonth}
+              onDateClick={openDayModal}
+            />
+          </Card>
 
           {/* Books finished per month (Yearly) or per year (All-time) */}
           {period !== "Monthly" && booksPerPeriodData.some((d) => d.books > 0) && (
@@ -668,28 +717,13 @@ export default function StatsPage() {
               <p className="text-[#6B6B6B] text-sm">No finished books for this period</p>
             </Card>
           )}
-
-          {/* Streak calendar (always all-time dates) */}
-          <Card>
-            <p className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1">Reading</p>
-            <p className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[#E8599A] mb-3">
-              Streak
-            </p>
-            <StreakCalendar
-              activeDates={allSessionDates}
-              dateCoverMap={dateCoverMap}
-              month={calendarMonth}
-              onMonthChange={setCalendarMonth}
-              onDateClick={openDayModal}
-            />
-          </Card>
         </div>
       )}
 
       {/* Backdate session modal */}
       <Modal
         open={!!backdateDate}
-        onClose={() => setBackdateDate(null)}
+        onClose={() => { setBackdateDate(null); setBackdateEndDate(""); }}
         title={`Log session — ${backdateDate ?? ""}`}
       >
         <div className="flex flex-col gap-4">
@@ -710,6 +744,23 @@ export default function StatsPage() {
                     <option key={ub.id} value={ub.id}>{ub.title}</option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1 block">
+                  End date <span className="normal-case text-[#6B6B6B]">(optional — log across multiple days)</span>
+                </label>
+                <input
+                  type="date"
+                  value={backdateEndDate}
+                  min={backdateDate ?? undefined}
+                  onChange={(e) => setBackdateEndDate(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]"
+                />
+                {backdateEndDate && backdateDate && backdateEndDate > backdateDate && (
+                  <p className="text-xs text-[#E8599A] mt-1">
+                    Will log {Math.round((new Date(backdateEndDate).getTime() - new Date(backdateDate).getTime()) / 86400000) + 1} days
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -744,7 +795,7 @@ export default function StatsPage() {
                 disabled={savingBackdate || !backdateBookId}
                 className="w-full"
               >
-                {savingBackdate ? "Saving..." : "Log Session"}
+                {savingBackdate ? "Saving..." : backdateEndDate && backdateEndDate > (backdateDate ?? "") ? "Log Sessions" : "Log Session"}
               </Button>
             </>
           )}
@@ -753,7 +804,7 @@ export default function StatsPage() {
       {/* Edit existing day sessions modal */}
       <Modal
         open={!!editDayDate}
-        onClose={() => { setEditDayDate(null); setInlineEditId(null); }}
+        onClose={() => { setEditDayDate(null); setInlineEditId(null); setAddSessionEndDate(""); }}
         title={editDayDate ? formatDate(editDayDate) : ""}
       >
         {editDayLoading ? (
@@ -827,6 +878,23 @@ export default function StatsPage() {
                       <option key={ub.id} value={ub.id}>{ub.title}</option>
                     ))}
                   </select>
+                  <div>
+                    <label className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1 block">
+                      End date <span className="normal-case text-[#6B6B6B]">(optional — log across multiple days)</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={addSessionEndDate}
+                      min={editDayDate ?? undefined}
+                      onChange={(e) => setAddSessionEndDate(e.target.value)}
+                      className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]"
+                    />
+                    {addSessionEndDate && editDayDate && addSessionEndDate > editDayDate && (
+                      <p className="text-xs text-[#E8599A] mt-1">
+                        Will log {Math.round((new Date(addSessionEndDate).getTime() - new Date(editDayDate).getTime()) / 86400000) + 1} days
+                      </p>
+                    )}
+                  </div>
                   <div className="grid grid-cols-2 gap-3">
                     <input type="number" min={0} value={backdatePages} placeholder="Pages (optional)" onChange={(e) => setBackdatePages(e.target.value)}
                       className="border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]" />
@@ -834,7 +902,7 @@ export default function StatsPage() {
                       className="border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]" />
                   </div>
                   <Button onClick={addSessionToDay} disabled={savingBackdate || !backdateBookId} className="w-full">
-                    {savingBackdate ? "Saving..." : "Log Session"}
+                    {savingBackdate ? "Saving..." : addSessionEndDate && addSessionEndDate > (editDayDate ?? "") ? "Log Sessions" : "Log Session"}
                   </Button>
                 </div>
               </div>
