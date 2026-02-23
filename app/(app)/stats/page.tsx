@@ -70,6 +70,21 @@ export default function StatsPage() {
   const [backdateMinutes, setBackdateMinutes] = useState("");
   const [savingBackdate, setSavingBackdate] = useState(false);
 
+  // Day sessions modal (for tapping active calendar dates)
+  interface DaySession {
+    id: string;
+    duration_seconds: number;
+    pages_read: number;
+    bookTitle: string;
+    userBookId: string;
+  }
+  const [editDayDate, setEditDayDate] = useState<string | null>(null);
+  const [editDaySessions, setEditDaySessions] = useState<DaySession[]>([]);
+  const [editDayLoading, setEditDayLoading] = useState(false);
+  const [inlineEditId, setInlineEditId] = useState<string | null>(null);
+  const [inlinePages, setInlinePages] = useState("");
+  const [inlineMinutes, setInlineMinutes] = useState("");
+
   // Fetch user books once for the backdate modal
   useEffect(() => {
     const supabase = createClient();
@@ -323,6 +338,109 @@ export default function StatsPage() {
     loadStats();
   }
 
+  async function openDayModal(date: string) {
+    if (allSessionDates.includes(date)) {
+      setEditDayDate(date);
+      setEditDayLoading(true);
+      setInlineEditId(null);
+      setBackdateBookId(userBooks[0]?.id ?? "");
+      setBackdatePages("");
+      setBackdateMinutes("");
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("reading_sessions")
+        .select("id, duration_seconds, pages_read, user_books(id, books(title))")
+        .eq("user_id", USER_ID)
+        .eq("date", date);
+      interface RawDaySess {
+        id: string;
+        duration_seconds: number;
+        pages_read: number;
+        user_books: { id: string; books: { title: string } | null } | null;
+      }
+      setEditDaySessions(
+        (data as unknown as RawDaySess[] ?? []).map((s) => ({
+          id: s.id,
+          duration_seconds: s.duration_seconds,
+          pages_read: s.pages_read,
+          bookTitle: s.user_books?.books?.title ?? "Unknown",
+          userBookId: s.user_books?.id ?? "",
+        }))
+      );
+      setEditDayLoading(false);
+    } else {
+      setBackdateDate(date);
+      setBackdateBookId(userBooks[0]?.id ?? "");
+      setBackdatePages("");
+      setBackdateMinutes("");
+    }
+  }
+
+  async function saveInlineEdit(sessionId: string) {
+    const supabase = createClient();
+    await supabase
+      .from("reading_sessions")
+      .update({
+        pages_read: parseInt(inlinePages) || 0,
+        duration_seconds: (parseInt(inlineMinutes) || 0) * 60,
+      })
+      .eq("id", sessionId);
+    setInlineEditId(null);
+    setEditDaySessions((prev) =>
+      prev.map((s) =>
+        s.id === sessionId
+          ? { ...s, pages_read: parseInt(inlinePages) || 0, duration_seconds: (parseInt(inlineMinutes) || 0) * 60 }
+          : s
+      )
+    );
+    loadAllSessionDates();
+    loadStats();
+  }
+
+  async function deleteDaySession(sessionId: string) {
+    const supabase = createClient();
+    await supabase.from("reading_sessions").delete().eq("id", sessionId);
+    setEditDaySessions((prev) => prev.filter((s) => s.id !== sessionId));
+    loadAllSessionDates();
+    loadStats();
+  }
+
+  async function addSessionToDay() {
+    if (!editDayDate || !backdateBookId) return;
+    setSavingBackdate(true);
+    const supabase = createClient();
+    const { data: newSess } = await supabase
+      .from("reading_sessions")
+      .insert({
+        user_id: USER_ID,
+        user_book_id: backdateBookId,
+        date: editDayDate,
+        duration_seconds: (parseInt(backdateMinutes) || 0) * 60,
+        pages_read: parseInt(backdatePages) || 0,
+      })
+      .select("id, duration_seconds, pages_read, user_books(id, books(title))")
+      .single();
+    setSavingBackdate(false);
+    setBackdatePages("");
+    setBackdateMinutes("");
+    if (newSess) {
+      interface RawDaySess {
+        id: string; duration_seconds: number; pages_read: number;
+        user_books: { id: string; books: { title: string } | null } | null;
+      }
+      const s = newSess as unknown as RawDaySess;
+      setEditDaySessions((prev) => [...prev, {
+        id: s.id,
+        duration_seconds: s.duration_seconds,
+        pages_read: s.pages_read,
+        bookTitle: s.user_books?.books?.title ?? "Unknown",
+        userBookId: s.user_books?.id ?? "",
+      }]);
+    }
+    loadAllSessionDates();
+    loadStats();
+  }
+
   const goalProgress = Math.min(100, Math.round((booksFinished / yearlyGoal) * 100));
 
   function prevMonth() {
@@ -562,12 +680,7 @@ export default function StatsPage() {
               dateCoverMap={dateCoverMap}
               month={calendarMonth}
               onMonthChange={setCalendarMonth}
-              onDateClick={(date) => {
-                setBackdateDate(date);
-                setBackdateBookId(userBooks[0]?.id ?? "");
-                setBackdatePages("");
-                setBackdateMinutes("");
-              }}
+              onDateClick={openDayModal}
             />
           </Card>
         </div>
@@ -636,6 +749,98 @@ export default function StatsPage() {
             </>
           )}
         </div>
+      </Modal>
+      {/* Edit existing day sessions modal */}
+      <Modal
+        open={!!editDayDate}
+        onClose={() => { setEditDayDate(null); setInlineEditId(null); }}
+        title={editDayDate ? formatDate(editDayDate) : ""}
+      >
+        {editDayLoading ? (
+          <div className="text-center py-4 text-sm text-[#6B6B6B]">Loading...</div>
+        ) : (
+          <div className="flex flex-col gap-5">
+            {/* Existing sessions */}
+            {editDaySessions.length > 0 && (
+              <div>
+                <p className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-2">Sessions logged</p>
+                <div className="flex flex-col">
+                  {editDaySessions.map((s) => (
+                    <div key={s.id}>
+                      {inlineEditId === s.id ? (
+                        <div className="bg-gray-50 rounded-xl p-3 flex flex-col gap-3 mb-2">
+                          <p className="text-sm font-medium text-[#1A1A1A]">{s.bookTitle}</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            <input type="number" min={0} value={inlinePages} onChange={(e) => setInlinePages(e.target.value)} placeholder="Pages"
+                              className="border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]" />
+                            <input type="number" min={0} value={inlineMinutes} onChange={(e) => setInlineMinutes(e.target.value)} placeholder="Minutes"
+                              className="border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]" />
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <Button onClick={() => saveInlineEdit(s.id)} className="flex-1">Save</Button>
+                            <button onClick={() => setInlineEditId(null)} className="text-sm text-[#6B6B6B]">Cancel</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 py-2 border-b border-gray-100 last:border-0">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-[#1A1A1A] line-clamp-1">{s.bookTitle}</p>
+                            <p className="text-xs text-[#6B6B6B]">
+                              {s.pages_read > 0 ? `${s.pages_read} pages` : "No pages"} · {s.duration_seconds > 0 ? formatDurationShort(s.duration_seconds) : "Time not logged"}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => { setInlineEditId(s.id); setInlinePages(String(s.pages_read)); setInlineMinutes(String(Math.round(s.duration_seconds / 60))); }}
+                            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 text-[#6B6B6B] flex-shrink-0"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => deleteDaySession(s.id)}
+                            className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-50 text-red-400 flex-shrink-0"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/>
+                            </svg>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Add another session */}
+            {userBooks.length > 0 && (
+              <div>
+                <p className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-2">
+                  {editDaySessions.length > 0 ? "Add another session" : "Log a session"}
+                </p>
+                <div className="flex flex-col gap-3">
+                  <select value={backdateBookId} onChange={(e) => setBackdateBookId(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]">
+                    {userBooks.map((ub) => (
+                      <option key={ub.id} value={ub.id}>{ub.title}</option>
+                    ))}
+                  </select>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input type="number" min={0} value={backdatePages} placeholder="Pages (optional)" onChange={(e) => setBackdatePages(e.target.value)}
+                      className="border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]" />
+                    <input type="number" min={0} value={backdateMinutes} placeholder="Minutes (optional)" onChange={(e) => setBackdateMinutes(e.target.value)}
+                      className="border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]" />
+                  </div>
+                  <Button onClick={addSessionToDay} disabled={savingBackdate || !backdateBookId} className="w-full">
+                    {savingBackdate ? "Saving..." : "Log Session"}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </div>
   );

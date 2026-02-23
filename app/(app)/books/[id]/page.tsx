@@ -322,12 +322,20 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
             </div>
           ) : (
             <div>
-              <Textarea
+              <textarea
+                ref={(el) => {
+                  if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; }
+                }}
+                onInput={(e) => {
+                  const el = e.currentTarget;
+                  el.style.height = "auto";
+                  el.style.height = el.scrollHeight + "px";
+                }}
                 placeholder="Write a short review..."
                 value={review}
                 onChange={(e) => setReview(e.target.value)}
-                rows={4}
                 autoFocus={editingReview}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-[#1A1A1A] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E8599A] focus:border-transparent resize-none overflow-hidden min-h-[80px]"
               />
               {editingReview && (
                 <button
@@ -360,7 +368,7 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
                   </p>
                 </div>
                 <span className="text-sm font-medium text-[#E8599A]">
-                  {formatDuration(s.duration_seconds)}
+                  {s.duration_seconds > 0 ? formatDuration(s.duration_seconds) : "Time not logged"}
                 </span>
                 <button
                   onClick={() => {
