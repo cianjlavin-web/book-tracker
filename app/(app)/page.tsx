@@ -6,9 +6,11 @@ import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
 import { USER_ID } from "@/lib/user";
 import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Modal } from "@/components/ui/Modal";
+import { BookSearch } from "@/components/books/BookSearch";
 import { ReadingTimer } from "@/components/timer/ReadingTimer";
 import { progressPercent, formatDurationShort } from "@/lib/utils";
+import type { BookSearchResult } from "@/lib/openLibrary";
 
 interface CurrentlyReading {
   id: string;
@@ -34,6 +36,7 @@ export default function HomePage() {
   const [booksFinished, setBooksFinished] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedBookId, setSelectedBookId] = useState<string | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -103,6 +106,39 @@ export default function HomePage() {
 
   useEffect(() => { load(); }, [load]);
 
+  async function handleAddBook(book: BookSearchResult) {
+    const supabase = createClient();
+    const { data: bookData } = await supabase
+      .from("books")
+      .upsert(
+        {
+          title: book.title,
+          author: book.author,
+          cover_url: book.coverUrl,
+          total_pages: book.totalPages,
+          genres: book.genres,
+          isbn: book.isbn,
+          published_year: book.publishedYear,
+          ol_id: book.olId,
+        },
+        { onConflict: "ol_id" }
+      )
+      .select()
+      .single();
+    if (!bookData) return;
+    await supabase.from("user_books").upsert(
+      {
+        user_id: USER_ID,
+        book_id: bookData.id,
+        status: "reading",
+        start_date: new Date().toISOString().split("T")[0],
+      },
+      { onConflict: "user_id,book_id" }
+    );
+    setShowAddModal(false);
+    load();
+  }
+
   const goalProgress = Math.min(100, Math.round((booksFinished / yearlyGoal) * 100));
 
   return (
@@ -153,8 +189,15 @@ export default function HomePage() {
 
       {/* Currently reading */}
       <div>
-        <p className="text-xs text-white/80 uppercase tracking-wider mb-1">Currently Reading</p>
-        <h2 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-white mb-4">Now Reading</h2>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-white">Now Reading</h2>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="w-8 h-8 flex items-center justify-center rounded-full bg-[#E8599A] text-white text-xl leading-none hover:bg-[#d44d8a] active:scale-95 transition-all"
+          >
+            +
+          </button>
+        </div>
 
         {loading ? (
           <div className="flex gap-3 overflow-x-auto pb-2">
@@ -214,8 +257,7 @@ export default function HomePage() {
       {/* Reading Timer */}
       {reading.length > 0 && (
         <div className="mt-6">
-          <p className="text-xs text-white/80 uppercase tracking-wider mb-1">Reading Timer</p>
-          <h2 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-white mb-3">Start a Session</h2>
+            <h2 className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-white mb-3">Start a Session</h2>
 
           {/* Book selector */}
           {reading.length > 1 && (
@@ -254,8 +296,7 @@ export default function HomePage() {
 
       {/* Quick actions */}
       <div className="mt-6">
-        <p className="text-xs text-white/80 uppercase tracking-wider mb-2">Quick Actions</p>
-        <div className="grid grid-cols-2 gap-3 mt-2">
+        <div className="grid grid-cols-2 gap-3">
           <Link
             href="/library"
             className="bg-[#F7F4F0] rounded-[20px] p-4 flex items-center gap-3 hover:shadow-md transition-shadow"
@@ -286,6 +327,11 @@ export default function HomePage() {
           </Link>
         </div>
       </div>
+
+      {/* Add book modal */}
+      <Modal open={showAddModal} onClose={() => setShowAddModal(false)} title="Add to Currently Reading">
+        <BookSearch onSelect={handleAddBook} onClose={() => setShowAddModal(false)} />
+      </Modal>
     </div>
   );
 }

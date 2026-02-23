@@ -9,12 +9,14 @@ export interface GoodreadsRow {
   shelves: string;
   numPages: number | null;
   goodreadsId: string;
+  review: string | null;
 }
 
 export interface ImportBook {
   title: string;
   author: string;
   rating: number | null;
+  review: string | null;
   dateRead: string | null;
   status: "reading" | "finished" | "want_to_read" | "dnf";
   numPages: number | null;
@@ -45,6 +47,7 @@ export function parseGoodreadsCSV(csvText: string): GoodreadsRow[] {
     shelves: row["Exclusive Shelf"] ?? row["Bookshelves"] ?? "",
     numPages: parseInt(row["Number of Pages"] ?? row["number_of_pages"] ?? "0") || null,
     goodreadsId: row["Book Id"] ?? row["book_id"] ?? "",
+    review: row["My Review"] ?? row["my_review"] ?? null,
   }));
 }
 
@@ -67,6 +70,7 @@ export async function enrichWithOpenLibrary(
           title: row.title,
           author: row.author,
           rating: row.myRating > 0 ? row.myRating : null,
+          review: row.review || null,
           dateRead: row.dateRead,
           status: mapStatus(row.shelves),
           numPages: row.numPages,

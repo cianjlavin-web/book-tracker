@@ -12,7 +12,7 @@ import { AuthorBarChart } from "@/components/charts/AuthorBarChart";
 import { BooksPerMonthChart } from "@/components/charts/BooksPerMonthChart";
 import { RatingDistributionChart } from "@/components/charts/RatingDistributionChart";
 import { StreakCalendar } from "@/components/charts/StreakCalendar";
-import { formatDurationShort } from "@/lib/utils";
+import { formatDurationShort, formatDate } from "@/lib/utils";
 
 type Period = "Monthly" | "Yearly" | "All-time";
 
@@ -27,10 +27,13 @@ interface UserBookOption {
   title: string;
 }
 
+interface BookRecord { title: string; days: number }
+interface SessionRecord { title: string; date: string; seconds: number }
+
 export default function StatsPage() {
   const now = new Date();
   const currentYear = now.getFullYear();
-  const currentMonth = now.getMonth(); // 0-indexed
+  const currentMonth = now.getMonth();
 
   const [period, setPeriod] = useState<Period>("Yearly");
   const [selectedYear, setSelectedYear] = useState(currentYear);
@@ -45,18 +48,26 @@ export default function StatsPage() {
   const [booksPerPeriodData, setBooksPerPeriodData] = useState<{ month: string; books: number }[]>([]);
   const [ratingData, setRatingData] = useState<{ rating: string; count: number }[]>([]);
   const [allSessionDates, setAllSessionDates] = useState<string[]>([]);
+  const [dateCoverMap, setDateCoverMap] = useState<Record<string, string[]>>({});
   const [avgPages, setAvgPages] = useState(0);
   const [totalTime, setTotalTime] = useState(0);
   const [yearlyGoal, setYearlyGoal] = useState(50);
   const [booksFinished, setBooksFinished] = useState(0);
   const [streak, setStreak] = useState(0);
 
+  // New stats
+  const [avgDaysToFinish, setAvgDaysToFinish] = useState<number | null>(null);
+  const [quickestBook, setQuickestBook] = useState<BookRecord | null>(null);
+  const [longestBook, setLongestBook] = useState<BookRecord | null>(null);
+  const [longestSession, setLongestSession] = useState<SessionRecord | null>(null);
+  const [shortestSession, setShortestSession] = useState<SessionRecord | null>(null);
+
   // Backdating
   const [userBooks, setUserBooks] = useState<UserBookOption[]>([]);
   const [backdateDate, setBackdateDate] = useState<string | null>(null);
   const [backdateBookId, setBackdateBookId] = useState("");
-  const [backdatePages, setBackdatePages] = useState("0");
-  const [backdateMinutes, setBackdateMinutes] = useState("30");
+  const [backdatePages, setBackdatePages] = useState("");
+  const [backdateMinutes, setBackdateMinutes] = useState("");
   const [savingBackdate, setSavingBackdate] = useState(false);
 
   // Fetch user books once for the backdate modal
@@ -79,14 +90,33 @@ export default function StatsPage() {
       });
   }, []);
 
-  // Load all-time session dates for the calendar (always unfiltered)
+  // Load all-time session dates + cover map for the calendar (always unfiltered)
   const loadAllSessionDates = useCallback(async () => {
     const supabase = createClient();
     const { data } = await supabase
       .from("reading_sessions")
-      .select("date")
+      .select("date, user_books(books(cover_url))")
       .eq("user_id", USER_ID);
-    setAllSessionDates([...new Set((data ?? []).map((s: { date: string }) => s.date))]);
+
+    const dates: string[] = [];
+    const coverMap: Record<string, string[]> = {};
+
+    interface RawSession {
+      date: string;
+      user_books: { books: { cover_url: string | null } | null } | null;
+    }
+
+    (data as unknown as RawSession[] ?? []).forEach((s) => {
+      dates.push(s.date);
+      const cover = s.user_books?.books?.cover_url;
+      if (cover) {
+        if (!coverMap[s.date]) coverMap[s.date] = [];
+        if (!coverMap[s.date].includes(cover)) coverMap[s.date].push(cover);
+      }
+    });
+
+    setAllSessionDates([...new Set(dates)]);
+    setDateCoverMap(coverMap);
   }, []);
 
   const loadStats = useCallback(async () => {
@@ -94,7 +124,6 @@ export default function StatsPage() {
     const supabase = createClient();
     const today = new Date();
 
-    // Build date range based on current period/nav state
     let range: { from: string; to: string } | null = null;
     if (period === "Yearly") {
       range = { from: `${selectedYear}-01-01`, to: `${selectedYear}-12-31` };
@@ -105,10 +134,10 @@ export default function StatsPage() {
       range = { from, to };
     }
 
-    // Finished books
+    // Finished books — include start_date and title for new stats
     let finishedQuery = supabase
       .from("user_books")
-      .select("rating, finish_date, books(author, genres, total_pages)")
+      .select("rating, finish_date, start_date, books(title, author, genres, total_pages)")
       .eq("user_id", USER_ID)
       .eq("status", "finished");
     if (range) finishedQuery = finishedQuery.gte("finish_date", range.from).lte("finish_date", range.to);
@@ -119,7 +148,8 @@ export default function StatsPage() {
     interface FinishedBook {
       rating: number | null;
       finish_date: string | null;
-      books: { author: string | null; genres: string[] | null; total_pages: number | null } | null;
+      start_date: string | null;
+      books: { title: string | null; author: string | null; genres: string[] | null; total_pages: number | null } | null;
     }
     const finishedTyped = (finished ?? []) as unknown as FinishedBook[];
 
@@ -186,21 +216,65 @@ export default function StatsPage() {
       setBooksPerPeriodData([]);
     }
 
-    // Sessions
+    // Days to finish
+    const booksWithDays = finishedTyped
+      .filter((ub) => ub.start_date && ub.finish_date)
+      .map((ub) => ({
+        title: ub.books?.title ?? "Unknown",
+        days: Math.round(
+          (new Date(ub.finish_date!).getTime() - new Date(ub.start_date!).getTime()) / 86400000
+        ),
+      }))
+      .filter((b) => b.days >= 0);
+
+    if (booksWithDays.length > 0) {
+      const avg = Math.round(booksWithDays.reduce((sum, b) => sum + b.days, 0) / booksWithDays.length);
+      setAvgDaysToFinish(avg);
+      const sorted = [...booksWithDays].sort((a, b) => a.days - b.days);
+      setQuickestBook(sorted[0]);
+      setLongestBook(sorted[sorted.length - 1]);
+    } else {
+      setAvgDaysToFinish(null);
+      setQuickestBook(null);
+      setLongestBook(null);
+    }
+
+    // Sessions — include book title for session records
+    interface SessionWithTitle {
+      date: string;
+      duration_seconds: number;
+      pages_read: number;
+      user_books: { books: { title: string } | null } | null;
+    }
+
     let sessQuery = supabase
       .from("reading_sessions")
-      .select("date, duration_seconds, pages_read")
+      .select("date, duration_seconds, pages_read, user_books(books(title))")
       .eq("user_id", USER_ID);
     if (range) sessQuery = sessQuery.gte("date", range.from).lte("date", range.to);
     const { data: sessions } = await sessQuery;
+    const sessTyped = (sessions ?? []) as unknown as SessionWithTitle[];
 
-    const totalSeconds = (sessions ?? []).reduce((s: number, r: { duration_seconds: number }) => s + r.duration_seconds, 0);
+    const totalSeconds = sessTyped.reduce((s, r) => s + r.duration_seconds, 0);
     setTotalTime(totalSeconds);
-    const totalPagesRead = (sessions ?? []).reduce((s: number, r: { pages_read: number }) => s + r.pages_read, 0);
-    const uniqueDays = new Set((sessions ?? []).map((s: { date: string }) => s.date)).size;
+    const totalPagesRead = sessTyped.reduce((s, r) => s + r.pages_read, 0);
+    const uniqueDays = new Set(sessTyped.map((s) => s.date)).size;
     setAvgPages(uniqueDays > 0 ? Math.round(totalPagesRead / uniqueDays) : 0);
 
-    // Streak (always all-time regardless of period filter)
+    // Session records (longest / shortest)
+    const sessWithDuration = sessTyped.filter((s) => s.duration_seconds > 0);
+    if (sessWithDuration.length > 0) {
+      const sortedSess = [...sessWithDuration].sort((a, b) => a.duration_seconds - b.duration_seconds);
+      const sh = sortedSess[0];
+      const lo = sortedSess[sortedSess.length - 1];
+      setShortestSession({ title: sh.user_books?.books?.title ?? "Unknown", date: sh.date, seconds: sh.duration_seconds });
+      setLongestSession({ title: lo.user_books?.books?.title ?? "Unknown", date: lo.date, seconds: lo.duration_seconds });
+    } else {
+      setShortestSession(null);
+      setLongestSession(null);
+    }
+
+    // Streak (always all-time)
     const { data: allDatesData } = await supabase
       .from("reading_sessions")
       .select("date")
@@ -367,6 +441,76 @@ export default function StatsPage() {
             </Card>
           )}
 
+          {/* Reading pace */}
+          {avgDaysToFinish !== null && (
+            <Card>
+              <p className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1">Reading pace</p>
+              <p className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[#E8599A] mb-3">
+                Days per book
+              </p>
+              <div className="flex items-center gap-3 mb-4">
+                <p className="font-[family-name:var(--font-playfair)] text-4xl font-bold text-[#1A1A1A]">
+                  {avgDaysToFinish}
+                </p>
+                <p className="text-sm text-[#6B6B6B] leading-tight">avg days<br />to finish</p>
+              </div>
+              {quickestBook && longestBook && quickestBook.title !== longestBook.title && (
+                <div className="border-t border-gray-100 pt-3 flex flex-col gap-2">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 min-w-0 mr-3">
+                      <p className="text-[10px] text-[#6B6B6B] uppercase tracking-wide mb-0.5">Quickest finish</p>
+                      <p className="text-sm font-medium text-[#1A1A1A] line-clamp-1">{quickestBook.title}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-[#E8599A] whitespace-nowrap">{quickestBook.days}d</span>
+                  </div>
+                  <div className="flex justify-between items-start pt-2 border-t border-gray-100">
+                    <div className="flex-1 min-w-0 mr-3">
+                      <p className="text-[10px] text-[#6B6B6B] uppercase tracking-wide mb-0.5">Longest to finish</p>
+                      <p className="text-sm font-medium text-[#1A1A1A] line-clamp-1">{longestBook.title}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-[#E8599A] whitespace-nowrap">{longestBook.days}d</span>
+                  </div>
+                </div>
+              )}
+            </Card>
+          )}
+
+          {/* Session records */}
+          {(longestSession || shortestSession) && (
+            <Card>
+              <p className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1">Session records</p>
+              <p className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[#E8599A] mb-3">
+                Best &amp; shortest
+              </p>
+              <div className="flex flex-col gap-0">
+                {longestSession && (
+                  <div className="flex justify-between items-start py-2 border-b border-gray-100">
+                    <div className="flex-1 min-w-0 mr-3">
+                      <p className="text-[10px] text-[#6B6B6B] uppercase tracking-wide mb-0.5">Longest session</p>
+                      <p className="text-sm font-medium text-[#1A1A1A] line-clamp-1">{longestSession.title}</p>
+                      <p className="text-xs text-[#6B6B6B]">{formatDate(longestSession.date)}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-[#E8599A] whitespace-nowrap">
+                      {formatDurationShort(longestSession.seconds)}
+                    </span>
+                  </div>
+                )}
+                {shortestSession && (
+                  <div className="flex justify-between items-start py-2">
+                    <div className="flex-1 min-w-0 mr-3">
+                      <p className="text-[10px] text-[#6B6B6B] uppercase tracking-wide mb-0.5">Shortest session</p>
+                      <p className="text-sm font-medium text-[#1A1A1A] line-clamp-1">{shortestSession.title}</p>
+                      <p className="text-xs text-[#6B6B6B]">{formatDate(shortestSession.date)}</p>
+                    </div>
+                    <span className="text-sm font-semibold text-[#E8599A] whitespace-nowrap">
+                      {formatDurationShort(shortestSession.seconds)}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </Card>
+          )}
+
           {/* Genres */}
           {genreData.length > 0 && (
             <Card>
@@ -415,13 +559,14 @@ export default function StatsPage() {
             </p>
             <StreakCalendar
               activeDates={allSessionDates}
+              dateCoverMap={dateCoverMap}
               month={calendarMonth}
               onMonthChange={setCalendarMonth}
               onDateClick={(date) => {
                 setBackdateDate(date);
                 setBackdateBookId(userBooks[0]?.id ?? "");
-                setBackdatePages("0");
-                setBackdateMinutes("30");
+                setBackdatePages("");
+                setBackdateMinutes("");
               }}
             />
           </Card>
@@ -456,24 +601,26 @@ export default function StatsPage() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1 block">
-                    Pages read
+                    Pages read <span className="normal-case">(optional)</span>
                   </label>
                   <input
                     type="number"
                     min={0}
                     value={backdatePages}
+                    placeholder="0"
                     onChange={(e) => setBackdatePages(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]"
                   />
                 </div>
                 <div>
                   <label className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1 block">
-                    Minutes
+                    Minutes <span className="normal-case">(optional)</span>
                   </label>
                   <input
                     type="number"
                     min={0}
                     value={backdateMinutes}
+                    placeholder="0"
                     onChange={(e) => setBackdateMinutes(e.target.value)}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]"
                   />

@@ -103,7 +103,8 @@ export default function ImportPage() {
 
         if (!bookId) continue;
 
-        // Upsert user_book
+        // Upsert user_book — only include review when non-empty so we
+        // don't overwrite a manually written review with a blank string.
         await supabase.from("user_books").upsert(
           {
             user_id: USER_ID,
@@ -112,6 +113,7 @@ export default function ImportPage() {
             rating: book.rating,
             finish_date: book.dateRead ? new Date(book.dateRead).toISOString().split("T")[0] : null,
             goodreads_id: book.goodreadsId || null,
+            ...(book.review ? { review: book.review } : {}),
           },
           { onConflict: "user_id,book_id" }
         );
@@ -199,6 +201,9 @@ export default function ImportPage() {
                   </Badge>
                   {book.rating && (
                     <span className="text-xs text-[#6B6B6B]">★{book.rating.toFixed(1)}</span>
+                  )}
+                  {book.review && (
+                    <span className="text-[10px] text-[#E8599A]">✍ review</span>
                   )}
                 </div>
               </div>

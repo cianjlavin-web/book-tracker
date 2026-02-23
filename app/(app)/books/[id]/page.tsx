@@ -9,6 +9,7 @@ import { ReadingTimer } from "@/components/timer/ReadingTimer";
 import { StarRating } from "@/components/books/StarRating";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Modal } from "@/components/ui/Modal";
 import { Textarea } from "@/components/ui/Input";
 import { Input } from "@/components/ui/Input";
 import { formatDate, formatDuration, progressPercent } from "@/lib/utils";
@@ -52,10 +53,14 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [editingReview, setEditingReview] = useState(false);
   const [status, setStatus] = useState<BookDetail["status"]>("reading");
   const [communityRating, setCommunityRating] = useState<number | null>(null);
   const [communityRatingCount, setCommunityRatingCount] = useState<number | null>(null);
   const [description, setDescription] = useState<string | null>(null);
+  const [editingSession, setEditingSession] = useState<Session | null>(null);
+  const [editPages, setEditPages] = useState("");
+  const [editMinutes, setEditMinutes] = useState("");
 
   const load = useCallback(async () => {
     const supabase = createClient();
@@ -119,6 +124,7 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
       })
       .eq("id", id);
     setSaving(false);
+    setEditingReview(false);
     load();
   }
 
@@ -131,6 +137,26 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
     if (!book) return;
     const supabase = createClient();
     await supabase.from("books").update({ total_pages: totalPages }).eq("id", book.books.id);
+  }
+
+  async function saveSessionEdit() {
+    if (!editingSession) return;
+    const supabase = createClient();
+    await supabase
+      .from("reading_sessions")
+      .update({
+        pages_read: parseInt(editPages) || 0,
+        duration_seconds: (parseInt(editMinutes) || 0) * 60,
+      })
+      .eq("id", editingSession.id);
+    setEditingSession(null);
+    load();
+  }
+
+  async function deleteSession(sessionId: string) {
+    const supabase = createClient();
+    await supabase.from("reading_sessions").delete().eq("id", sessionId);
+    setSessions((prev) => prev.filter((s) => s.id !== sessionId));
   }
 
   if (loading) {
@@ -275,14 +301,46 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
       <div className="bg-[#F7F4F0] rounded-[24px] p-5 mb-4">
         <p className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-3">Rating & Review</p>
         <StarRating value={rating} onChange={setRating} />
-        <div className="mt-3">
-          <Textarea
-            placeholder="Write a short review..."
-            value={review}
-            onChange={(e) => setReview(e.target.value)}
-            rows={3}
-          />
+
+        {/* Review: read-only by default, editable on tap */}
+        <div className="mt-4">
+          {review && !editingReview ? (
+            <div className="relative">
+              <p className="text-sm text-[#1A1A1A] leading-relaxed whitespace-pre-wrap pr-8">
+                {review.replace(/<br\s*\/?>/gi, "\n").replace(/<[^>]+>/g, "")}
+              </p>
+              <button
+                onClick={() => setEditingReview(true)}
+                className="absolute top-0 right-0 w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 text-[#6B6B6B] transition-colors"
+                title="Edit review"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            <div>
+              <Textarea
+                placeholder="Write a short review..."
+                value={review}
+                onChange={(e) => setReview(e.target.value)}
+                rows={4}
+                autoFocus={editingReview}
+              />
+              {editingReview && (
+                <button
+                  onClick={() => { setReview(book?.review ?? ""); setEditingReview(false); }}
+                  className="text-xs text-[#6B6B6B] mt-1 hover:text-[#1A1A1A]"
+                >
+                  Cancel
+                </button>
+              )}
+            </div>
+          )}
         </div>
+
         <Button onClick={saveDetails} disabled={saving} className="mt-3 w-full">
           {saving ? "Saving..." : "Save"}
         </Button>
@@ -294,8 +352,8 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
           <p className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-3">Reading Sessions</p>
           <div className="flex flex-col gap-2">
             {sessions.map((s) => (
-              <div key={s.id} className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
-                <div>
+              <div key={s.id} className="flex items-center py-2 border-b border-gray-100 last:border-0 gap-2">
+                <div className="flex-1">
                   <p className="text-sm font-medium text-[#1A1A1A]">{formatDate(s.date)}</p>
                   <p className="text-xs text-[#6B6B6B]">
                     {s.pages_read > 0 ? `${s.pages_read} pages` : "No pages logged"}
@@ -304,11 +362,64 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
                 <span className="text-sm font-medium text-[#E8599A]">
                   {formatDuration(s.duration_seconds)}
                 </span>
+                <button
+                  onClick={() => {
+                    setEditingSession(s);
+                    setEditPages(String(s.pages_read));
+                    setEditMinutes(String(Math.round(s.duration_seconds / 60)));
+                  }}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-gray-200 text-[#6B6B6B] transition-colors flex-shrink-0"
+                  title="Edit session"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
               </div>
             ))}
           </div>
         </div>
       )}
+
+      {/* Edit session modal */}
+      <Modal
+        open={!!editingSession}
+        onClose={() => setEditingSession(null)}
+        title={editingSession ? `Edit session — ${formatDate(editingSession.date)}` : ""}
+      >
+        <div className="flex flex-col gap-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1 block">Pages read</label>
+              <input
+                type="number"
+                min={0}
+                value={editPages}
+                onChange={(e) => setEditPages(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1 block">Minutes</label>
+              <input
+                type="number"
+                min={0}
+                value={editMinutes}
+                onChange={(e) => setEditMinutes(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]"
+              />
+            </div>
+          </div>
+          <Button onClick={saveSessionEdit} className="w-full">Save changes</Button>
+          <button
+            onClick={() => { deleteSession(editingSession!.id); setEditingSession(null); }}
+            className="text-sm text-red-400 hover:text-red-600 text-center transition-colors"
+          >
+            Delete this session
+          </button>
+        </div>
+      </Modal>
     </div>
   );
 }

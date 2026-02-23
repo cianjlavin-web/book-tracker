@@ -4,12 +4,13 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, getDay, addMonths,
 
 interface StreakCalendarProps {
   activeDates: string[]; // all-time YYYY-MM-DD strings
+  dateCoverMap?: Record<string, string[]>; // date → array of cover URLs (most recent first)
   month: Date;
   onMonthChange: (m: Date) => void;
   onDateClick?: (date: string) => void;
 }
 
-export function StreakCalendar({ activeDates, month, onMonthChange, onDateClick }: StreakCalendarProps) {
+export function StreakCalendar({ activeDates, dateCoverMap, month, onMonthChange, onDateClick }: StreakCalendarProps) {
   const activeSet = new Set(activeDates);
   const start = startOfMonth(month);
   const end = endOfMonth(month);
@@ -61,6 +62,43 @@ export function StreakCalendar({ activeDates, month, onMonthChange, onDateClick 
           const isActive = activeSet.has(iso);
           const isToday = iso === today;
           const isFuture = iso > today;
+          const covers = dateCoverMap?.[iso]?.filter(Boolean) ?? [];
+
+          if (isActive && covers.length > 0) {
+            return (
+              <button
+                key={iso}
+                onClick={() => !isFuture && onDateClick?.(iso)}
+                disabled={isFuture}
+                className="aspect-square rounded-lg relative overflow-hidden transition-opacity hover:opacity-90"
+              >
+                {/* Primary cover fills the cell */}
+                <img
+                  src={covers[0]}
+                  alt=""
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+                {/* Second cover peeks from the right if multiple books */}
+                {covers[1] && (
+                  <img
+                    src={covers[1]}
+                    alt=""
+                    className="absolute inset-y-0 right-0 h-full object-cover"
+                    style={{ width: "40%", objectPosition: "left" }}
+                  />
+                )}
+                {/* Pink tint overlay */}
+                <div className="absolute inset-0 bg-[#E8599A]/25" />
+                {/* Date number */}
+                <span
+                  className="absolute top-0.5 left-1 text-[9px] font-bold text-white z-10 leading-none"
+                  style={{ textShadow: "0 1px 3px rgba(0,0,0,0.6)" }}
+                >
+                  {format(day, "d")}
+                </span>
+              </button>
+            );
+          }
 
           return (
             <button
