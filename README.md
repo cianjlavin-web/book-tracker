@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Book Tracker
 
-## Getting Started
+A personal book tracking web app with Fable-inspired design. Track reading progress, time sessions, stats/charts, and import your Goodreads history.
 
-First, run the development server:
+## Features
+
+- **Currently Reading** — track page progress with progress bars and per-day stats
+- **Reading Timer** — start/pause/stop timer that logs sessions to the database
+- **Reading Stats** — genres, top authors, ratings, streaks, books per month (Monthly/Yearly/All-time)
+- **Goodreads CSV Import** — import your reading history with cover art from Open Library
+- **Ratings** — 0.25 increment star ratings + short reviews
+- **Yearly Reading Goal** — set and track your annual target
+- **Fable-inspired design** — cream cards, muted purple-gray background, hot pink accent
+
+## Setup
+
+### 1. Create a Supabase project at [supabase.com](https://supabase.com)
+
+### 2. Run the schema
+
+In the Supabase SQL editor, run `supabase/schema.sql`.
+
+### 3. Configure env vars
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+cp .env.local.example .env.local
+# fill in NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### 4. Run locally
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Deploy to Vercel
 
-## Learn More
+Push to GitHub → import in Vercel → add the two Supabase env vars → deploy.
 
-To learn more about Next.js, take a look at the following resources:
+## Goodreads Import
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Goodreads → My Books → Import/Export → Export Library → upload the CSV in the app's Import page.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Stack
 
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Next.js 16 · TypeScript · Tailwind CSS · Recharts · Supabase · Open Library API
