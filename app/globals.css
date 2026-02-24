@@ -5,12 +5,15 @@
   --color-pink-light: #F4A7CB;
   --color-pink-pale: #FAE0EE;
   --color-card: #F7F4F0;
+  --color-input-bg: #FFFFFF;
+  --color-text: #1A1A1A;
+  --color-muted: #6B6B6B;
+  --color-border: #E5E7EB;
+  --color-border-subtle: #F3F4F6;
   --color-page-bg: #2A1728;
   --color-page-bg-light: #4A2840;
   --color-gradient-a: #E8599A;
   --color-gradient-b: #E87A50;
-  --color-text: #1A1A1A;
-  --color-muted: #6B6B6B;
   --foreground: var(--color-text);
 }
 
@@ -48,7 +51,7 @@ body {
 .progress-bar {
   height: 4px;
   border-radius: 2px;
-  background: #e5e7eb;
+  background: var(--color-border);
   overflow: hidden;
 }
 .progress-bar-fill {
@@ -80,3 +83,19 @@ body {
 .ring-\[\#E8599A\] { --tw-ring-color: var(--color-pink); }
 .stroke-\[\#E8599A\] { stroke: var(--color-pink); }
 .fill-\[\#E8599A\] { fill: var(--color-pink); }
+
+/*
+ * Surface / dark-mode overrides — maps hardcoded Tailwind surface classes to CSS variables
+ * so toggling --color-card / --color-text etc. via JS is enough to switch light ↔ dark.
+ */
+.bg-\[\#F7F4F0\] { background-color: var(--color-card); }
+.bg-white { background-color: var(--color-input-bg); }
+.text-\[\#1A1A1A\] { color: var(--color-text); }
+.text-\[\#6B6B6B\] { color: var(--color-muted); }
+.border-gray-200 { border-color: var(--color-border); }
+.border-gray-100 { border-color: var(--color-border-subtle); }
+.hover\:bg-gray-100:hover { background-color: rgba(128,128,128,0.15); }
+.hover\:bg-gray-50:hover  { background-color: rgba(128,128,128,0.08); }
+.hover\:bg-gray-200:hover { background-color: rgba(128,128,128,0.22); }
+.bg-gray-100 { background-color: rgba(128,128,128,0.12); }
+.bg-gray-200 { background-color: rgba(128,128,128,0.20); }

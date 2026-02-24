@@ -23,7 +23,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
-  const { theme: activeThemeObj, setThemeById } = useTheme();
+  const { theme: activeThemeObj, setThemeById, colorMode, setColorMode } = useTheme();
 
   const loadProfile = useCallback(async () => {
     const supabase = createClient();
@@ -122,6 +122,28 @@ export default function SettingsPage() {
                     }}
                   />
                   <span className="text-xs text-[#1A1A1A] font-medium">{theme.name}</span>
+                </button>
+              ))}
+            </div>
+          </Card>
+
+          {/* Appearance */}
+          <Card>
+            <p className="text-sm font-semibold text-[#1A1A1A] mb-1">Appearance</p>
+            <p className="text-xs text-[#6B6B6B] mb-4">Switch between light and dark cards</p>
+            <div className="flex gap-2">
+              {(["light", "dark"] as const).map((mode) => (
+                <button
+                  key={mode}
+                  onClick={() => setColorMode(mode)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all capitalize"
+                  style={
+                    colorMode === mode
+                      ? { background: activeThemeObj.accent, color: "#fff" }
+                      : { background: "var(--color-border-subtle)", color: "var(--color-muted)" }
+                  }
+                >
+                  {mode === "light" ? "Light" : "Dark"}
                 </button>
               ))}
             </div>

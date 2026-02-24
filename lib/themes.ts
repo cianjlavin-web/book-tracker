@@ -72,6 +72,27 @@ export function getTheme(id: string): Theme {
   return THEMES.find((t) => t.id === id) ?? THEMES[0];
 }
 
+export type ColorMode = "light" | "dark";
+
+export function applyColorMode(mode: ColorMode) {
+  const r = document.documentElement;
+  if (mode === "dark") {
+    r.style.setProperty("--color-card", "rgba(255,255,255,0.09)");
+    r.style.setProperty("--color-input-bg", "rgba(255,255,255,0.12)");
+    r.style.setProperty("--color-text", "#F0F0F0");
+    r.style.setProperty("--color-muted", "#A0A0A0");
+    r.style.setProperty("--color-border", "rgba(255,255,255,0.18)");
+    r.style.setProperty("--color-border-subtle", "rgba(255,255,255,0.10)");
+  } else {
+    r.style.setProperty("--color-card", "#F7F4F0");
+    r.style.setProperty("--color-input-bg", "#FFFFFF");
+    r.style.setProperty("--color-text", "#1A1A1A");
+    r.style.setProperty("--color-muted", "#6B6B6B");
+    r.style.setProperty("--color-border", "#E5E7EB");
+    r.style.setProperty("--color-border-subtle", "#F3F4F6");
+  }
+}
+
 export function applyTheme(theme: Theme) {
   const r = document.documentElement;
   r.style.setProperty("--color-pink", theme.accent);
@@ -84,4 +105,4 @@ export function applyTheme(theme: Theme) {
 }
 
 // Serialized for inline <script> anti-FOUC (must stay in sync with THEMES above)
-export const THEME_SCRIPT = `(function(){var t={rose:{a:'#E8599A',al:'#F4A7CB',ap:'#FAE0EE',bg:'#2A1728',bgl:'#4A2840',gf:'#E8599A',gt:'#E87A50'},ocean:{a:'#0EA5E9',al:'#7DD3FC',ap:'#E0F2FE',bg:'#0D2235',bgl:'#244D6A',gf:'#0EA5E9',gt:'#6366F1'},forest:{a:'#22C55E',al:'#86EFAC',ap:'#DCFCE7',bg:'#0D1A14',bgl:'#234030',gf:'#22C55E',gt:'#10B981'},sunset:{a:'#F97316',al:'#FDBA74',ap:'#FFF7ED',bg:'#1F0E04',bgl:'#523014',gf:'#F97316',gt:'#EF4444'},violet:{a:'#A855F7',al:'#D8B4FE',ap:'#F3E8FF',bg:'#180E2A',bgl:'#3D2665',gf:'#A855F7',gt:'#EC4899'}};var id=localStorage.getItem('app_theme')||'rose';var th=t[id]||t.rose;var r=document.documentElement;r.style.setProperty('--color-pink',th.a);r.style.setProperty('--color-pink-light',th.al);r.style.setProperty('--color-pink-pale',th.ap);r.style.setProperty('--color-page-bg',th.bg);r.style.setProperty('--color-page-bg-light',th.bgl);r.style.setProperty('--color-gradient-a',th.gf);r.style.setProperty('--color-gradient-b',th.gt);})();`;
+export const THEME_SCRIPT = `(function(){var t={rose:{a:'#E8599A',al:'#F4A7CB',ap:'#FAE0EE',bg:'#2A1728',bgl:'#4A2840',gf:'#E8599A',gt:'#E87A50'},ocean:{a:'#0EA5E9',al:'#7DD3FC',ap:'#E0F2FE',bg:'#0D2235',bgl:'#244D6A',gf:'#0EA5E9',gt:'#6366F1'},forest:{a:'#22C55E',al:'#86EFAC',ap:'#DCFCE7',bg:'#0D1A14',bgl:'#234030',gf:'#22C55E',gt:'#10B981'},sunset:{a:'#F97316',al:'#FDBA74',ap:'#FFF7ED',bg:'#1F0E04',bgl:'#523014',gf:'#F97316',gt:'#EF4444'},violet:{a:'#A855F7',al:'#D8B4FE',ap:'#F3E8FF',bg:'#180E2A',bgl:'#3D2665',gf:'#A855F7',gt:'#EC4899'}};var id=localStorage.getItem('app_theme')||'rose';var th=t[id]||t.rose;var r=document.documentElement;r.style.setProperty('--color-pink',th.a);r.style.setProperty('--color-pink-light',th.al);r.style.setProperty('--color-pink-pale',th.ap);r.style.setProperty('--color-page-bg',th.bg);r.style.setProperty('--color-page-bg-light',th.bgl);r.style.setProperty('--color-gradient-a',th.gf);r.style.setProperty('--color-gradient-b',th.gt);var cm=localStorage.getItem('app_color_mode')||'light';if(cm==='dark'){r.style.setProperty('--color-card','rgba(255,255,255,0.09)');r.style.setProperty('--color-input-bg','rgba(255,255,255,0.12)');r.style.setProperty('--color-text','#F0F0F0');r.style.setProperty('--color-muted','#A0A0A0');r.style.setProperty('--color-border','rgba(255,255,255,0.18)');r.style.setProperty('--color-border-subtle','rgba(255,255,255,0.10)');}else{r.style.setProperty('--color-card','#F7F4F0');r.style.setProperty('--color-input-bg','#FFFFFF');r.style.setProperty('--color-text','#1A1A1A');r.style.setProperty('--color-muted','#6B6B6B');r.style.setProperty('--color-border','#E5E7EB');r.style.setProperty('--color-border-subtle','#F3F4F6');}})();`;
