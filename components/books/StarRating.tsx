@@ -46,8 +46,7 @@ export function StarRating({ value, onChange, readonly = false }: StarRatingProp
             <svg width="40" height="40" viewBox="0 0 24 24" className="absolute inset-0" style={{ clipPath: `inset(0 ${(1 - fill) * 100}% 0 0)` }}>
               <polygon
                 points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-                fill="#E8599A"
-                stroke="#E8599A"
+                style={{ fill: "var(--color-pink)", stroke: "var(--color-pink)" }}
                 strokeWidth="1"
               />
             </svg>

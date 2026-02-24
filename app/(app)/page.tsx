@@ -71,14 +71,17 @@ export default function HomePage() {
       .order("date", { ascending: false });
 
     if (sessionDates && sessionDates.length > 0) {
-      const uniqueDates = [...new Set(sessionDates.map((s) => s.date))].sort().reverse();
+      const dateSet = new Set(sessionDates.map((s) => s.date));
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const toLocalStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+      const cursor = new Date();
+      if (!dateSet.has(toLocalStr(cursor))) {
+        cursor.setDate(cursor.getDate() - 1);
+      }
       let s = 0;
-      const now = new Date();
-      for (let i = 0; i < uniqueDates.length; i++) {
-        const d = new Date(uniqueDates[i]);
-        const diffDays = Math.floor((now.getTime() - d.getTime()) / 86400000);
-        if (diffDays <= i + 1) s++;
-        else break;
+      while (dateSet.has(toLocalStr(cursor))) {
+        s++;
+        cursor.setDate(cursor.getDate() - 1);
       }
       setStreak(s);
     }
@@ -146,7 +149,7 @@ export default function HomePage() {
       {/* Gradient header */}
       <div
         className="rounded-[24px] p-6 mb-4"
-        style={{ background: "linear-gradient(135deg, #E8599A, #E87A50)" }}
+        style={{ background: "linear-gradient(135deg, var(--color-gradient-a), var(--color-gradient-b))" }}
       >
         <p className="text-white/80 text-xs uppercase tracking-wider mb-1">Today</p>
         <h1 className="font-[family-name:var(--font-playfair)] text-3xl font-bold text-white mb-4">

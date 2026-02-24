@@ -299,15 +299,18 @@ export default function StatsPage() {
     const { data: allDatesData } = await supabase
       .from("reading_sessions")
       .select("date")
-      .eq("user_id", USER_ID)
-      .order("date", { ascending: false });
-    const uniqueDatesAll = [...new Set((allDatesData ?? []).map((s: { date: string }) => s.date))].sort().reverse();
+      .eq("user_id", USER_ID);
+    const dateSet = new Set((allDatesData ?? []).map((s: { date: string }) => s.date));
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const toLocalStr = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const cursor = new Date(today);
+    if (!dateSet.has(toLocalStr(cursor))) {
+      cursor.setDate(cursor.getDate() - 1);
+    }
     let s = 0;
-    for (let i = 0; i < uniqueDatesAll.length; i++) {
-      const d = new Date(uniqueDatesAll[i]);
-      const diffDays = Math.floor((today.getTime() - d.getTime()) / 86400000);
-      if (diffDays <= i + 1) s++;
-      else break;
+    while (dateSet.has(toLocalStr(cursor))) {
+      s++;
+      cursor.setDate(cursor.getDate() - 1);
     }
     setStreak(s);
 

@@ -52,13 +52,7 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 ];
 
 export default function LibraryPage() {
-  const [activeTab, setActiveTab] = useState<Status>(() => {
-    if (typeof window !== "undefined") {
-      const saved = sessionStorage.getItem("library_tab");
-      if (saved && ["reading", "finished", "want_to_read", "dnf"].includes(saved)) return saved as Status;
-    }
-    return "reading";
-  });
+  const [activeTab, setActiveTab] = useState<Status>("reading");
 
   function handleTabChange(tab: Status) {
     setActiveTab(tab);
@@ -68,24 +62,22 @@ export default function LibraryPage() {
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addingStatus, setAddingStatus] = useState<Status>("want_to_read");
-  const [sortKey, setSortKey] = useState<SortKey>(() => {
-    if (typeof window !== "undefined") {
-      const saved = sessionStorage.getItem("library_sort_key");
-      if (saved && ["date_added", "date_finished", "published_year", "my_rating", "title", "community_rating"].includes(saved)) return saved as SortKey;
-    }
-    return "date_added";
-  });
-  const [sortDir, setSortDir] = useState<SortDir>(() => {
-    if (typeof window !== "undefined") {
-      const saved = sessionStorage.getItem("library_sort_dir");
-      if (saved === "asc" || saved === "desc") return saved;
-    }
-    return "desc";
-  });
+  const [sortKey, setSortKey] = useState<SortKey>("date_added");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [communityData, setCommunityData] = useState<Map<string, CommunityEntry>>(new Map());
   // Track which user_book ids have already been fetched so we don't re-fetch on re-renders
   const fetchedIds = useRef<Set<string>>(new Set());
+
+  // Restore persisted tab/sort from sessionStorage after mount (avoids hydration mismatch)
+  useEffect(() => {
+    const tab = sessionStorage.getItem("library_tab");
+    if (tab && ["reading", "finished", "want_to_read", "dnf"].includes(tab)) setActiveTab(tab as Status);
+    const key = sessionStorage.getItem("library_sort_key");
+    if (key && ["date_added", "date_finished", "published_year", "my_rating", "title", "community_rating"].includes(key)) setSortKey(key as SortKey);
+    const dir = sessionStorage.getItem("library_sort_dir");
+    if (dir === "asc" || dir === "desc") setSortDir(dir);
+  }, []);
 
   const loadBooks = useCallback(async () => {
     setLoading(true);

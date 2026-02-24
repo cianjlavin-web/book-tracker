@@ -55,3 +55,27 @@ body {
   background: var(--color-pink);
   transition: width 0.3s ease;
 }
+
+/*
+ * Theme color overrides — maps hardcoded Tailwind arbitrary-value classes to CSS variables.
+ * Because these rules are outside @layer they override Tailwind's @layer utilities rules.
+ */
+.text-\[\#E8599A\] { color: var(--color-pink); }
+.bg-\[\#E8599A\] { background-color: var(--color-pink); }
+.border-\[\#E8599A\] { border-color: var(--color-pink); }
+.hover\:bg-\[\#E8599A\]:hover { background-color: var(--color-pink); }
+.hover\:bg-\[\#d44d8a\]:hover { background-color: color-mix(in srgb, var(--color-pink) 85%, black); }
+.active\:bg-\[\#d44d8a\]:active { background-color: color-mix(in srgb, var(--color-pink) 85%, black); }
+.hover\:text-\[\#E8599A\]:hover { color: var(--color-pink); }
+.bg-\[\#FAE0EE\] { background-color: var(--color-pink-pale); }
+.hover\:bg-\[\#FAE0EE\]:hover { background-color: var(--color-pink-pale); }
+.text-\[\#F4A7CB\] { color: var(--color-pink-light); }
+.bg-\[\#F4A7CB\] { background-color: var(--color-pink-light); }
+.hover\:bg-\[\#F4A7CB\]:hover { background-color: var(--color-pink-light); }
+.from-\[\#F4A7CB\] { --tw-gradient-from: var(--color-pink-light); }
+.to-\[\#E8599A\] { --tw-gradient-to: var(--color-pink); }
+.from-\[\#E8599A\] { --tw-gradient-from: var(--color-pink); }
+.focus\:ring-\[\#E8599A\]:focus { --tw-ring-color: var(--color-pink); }
+.ring-\[\#E8599A\] { --tw-ring-color: var(--color-pink); }
+.stroke-\[\#E8599A\] { stroke: var(--color-pink); }
+.fill-\[\#E8599A\] { fill: var(--color-pink); }

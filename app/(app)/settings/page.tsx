@@ -7,6 +7,7 @@ import { USER_ID } from "@/lib/user";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { THEMES, getTheme, applyTheme } from "@/lib/themes";
 
 interface Profile {
   id: string;
@@ -21,6 +22,17 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [activeTheme, setActiveTheme] = useState("rose");
+  useEffect(() => {
+    const saved = localStorage.getItem("app_theme");
+    if (saved) setActiveTheme(saved);
+  }, []);
+
+  function handleThemeChange(themeId: string) {
+    setActiveTheme(themeId);
+    localStorage.setItem("app_theme", themeId);
+    applyTheme(getTheme(themeId));
+  }
 
   const loadProfile = useCallback(async () => {
     const supabase = createClient();
@@ -96,6 +108,33 @@ export default function SettingsPage() {
           <Button onClick={saveProfile} disabled={saving} size="lg" className="w-full">
             {saving ? "Saving..." : saved ? "Saved!" : "Save Changes"}
           </Button>
+
+          {/* Theme */}
+          <Card>
+            <p className="text-sm font-semibold text-[#1A1A1A] mb-1">Color Theme</p>
+            <p className="text-xs text-[#6B6B6B] mb-4">Personalise the look of your app</p>
+            <div className="flex gap-4 flex-wrap">
+              {THEMES.map((theme) => (
+                <button
+                  key={theme.id}
+                  onClick={() => handleThemeChange(theme.id)}
+                  className="flex flex-col items-center gap-1.5 transition-transform"
+                  style={{ transform: activeTheme === theme.id ? "scale(1.1)" : "scale(1)" }}
+                  title={theme.name}
+                >
+                  <div
+                    className="w-12 h-12 rounded-full shadow-md transition-all"
+                    style={{
+                      background: `linear-gradient(135deg, ${theme.gradientFrom}, ${theme.gradientTo})`,
+                      outline: activeTheme === theme.id ? `3px solid ${theme.accent}` : "3px solid transparent",
+                      outlineOffset: "2px",
+                    }}
+                  />
+                  <span className="text-xs text-[#1A1A1A] font-medium">{theme.name}</span>
+                </button>
+              ))}
+            </div>
+          </Card>
 
           {/* Import */}
           <Card>
