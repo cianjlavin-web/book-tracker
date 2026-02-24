@@ -17,6 +17,7 @@ import { formatDurationShort, formatDate } from "@/lib/utils";
 type Period = "Monthly" | "Yearly" | "All-time";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DEFAULT_PAST_GOALS: Record<number, number> = { 2024: 20, 2025: 50 };
 const FULL_MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -62,6 +63,11 @@ export default function StatsPage() {
   const [longestSession, setLongestSession] = useState<SessionRecord | null>(null);
   const [shortestSession, setShortestSession] = useState<SessionRecord | null>(null);
 
+  // Goal editing
+  const [editingGoal, setEditingGoal] = useState(false);
+  const [editGoalValue, setEditGoalValue] = useState("");
+  const [pastYearGoals, setPastYearGoals] = useState<Record<number, number>>({});
+
   // Backdating
   const [userBooks, setUserBooks] = useState<UserBookOption[]>([]);
   const [backdateDate, setBackdateDate] = useState<string | null>(null);
@@ -86,6 +92,17 @@ export default function StatsPage() {
   const [inlineEditId, setInlineEditId] = useState<string | null>(null);
   const [inlinePages, setInlinePages] = useState("");
   const [inlineMinutes, setInlineMinutes] = useState("");
+
+  // Load per-year goals from localStorage
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("yearly_goals");
+      if (stored) setPastYearGoals(JSON.parse(stored));
+    } catch {}
+  }, []);
+
+  // Reset goal editing when year changes
+  useEffect(() => { setEditingGoal(false); }, [selectedYear]);
 
   // Fetch user books once for the backdate modal
   useEffect(() => {
@@ -478,7 +495,26 @@ export default function StatsPage() {
     loadStats();
   }
 
-  const goalProgress = Math.min(100, Math.round((booksFinished / yearlyGoal) * 100));
+  async function saveGoal(newGoal: number) {
+    if (newGoal < 1) return;
+    if (selectedYear === currentYear) {
+      const supabase = createClient();
+      await supabase.from("profiles").update({ yearly_goal: newGoal }).eq("id", USER_ID);
+      setYearlyGoal(newGoal);
+    } else {
+      const updated = { ...pastYearGoals, [selectedYear]: newGoal };
+      setPastYearGoals(updated);
+      localStorage.setItem("yearly_goals", JSON.stringify(updated));
+    }
+    setEditingGoal(false);
+  }
+
+  const effectiveGoal =
+    selectedYear === currentYear
+      ? yearlyGoal
+      : pastYearGoals[selectedYear] ?? DEFAULT_PAST_GOALS[selectedYear] ?? 50;
+  const goalProgress = Math.min(100, Math.round((booksFinished / effectiveGoal) * 100));
+  const goalCompleted = booksFinished >= effectiveGoal;
 
   function prevMonth() {
     if (monthlyMonth === 0) { setMonthlyMonth(11); setMonthlyYear((y) => y - 1); }
@@ -548,24 +584,70 @@ export default function StatsPage() {
         </div>
       ) : (
         <div className="flex flex-col gap-4">
-          {/* Yearly goal (current year only) */}
-          {period === "Yearly" && selectedYear === currentYear && (
+          {/* Yearly goal */}
+          {period === "Yearly" && (
             <Card>
-              <p className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-2">
-                Reading Goal {currentYear}
-              </p>
-              <div className="flex items-end justify-between mb-3">
-                <span className="font-[family-name:var(--font-playfair)] text-3xl font-bold text-[#E8599A]">
-                  {booksFinished}
-                </span>
-                <span className="text-sm text-[#6B6B6B]">of {yearlyGoal} books</span>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-[#6B6B6B] uppercase tracking-wide">
+                  Reading Goal {selectedYear}
+                </p>
+                <button
+                  onClick={() => { setEditingGoal(true); setEditGoalValue(String(effectiveGoal)); }}
+                  className="w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-200 text-[#6B6B6B] transition-colors"
+                  title="Edit goal"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                  </svg>
+                </button>
               </div>
-              <div className="progress-bar" style={{ height: "10px" }}>
-                <div className="progress-bar-fill" style={{ width: `${goalProgress}%`, height: "10px" }} />
-              </div>
-              <p className="text-xs text-[#6B6B6B] mt-2">
-                {goalProgress}% complete · {Math.max(0, yearlyGoal - booksFinished)} to go
-              </p>
+
+              {editingGoal ? (
+                <div className="flex items-center gap-2 mb-1">
+                  <input
+                    type="number"
+                    min={1}
+                    value={editGoalValue}
+                    onChange={(e) => setEditGoalValue(e.target.value)}
+                    autoFocus
+                    className="flex-1 border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]"
+                  />
+                  <Button onClick={() => saveGoal(parseInt(editGoalValue) || 50)} size="sm">Save</Button>
+                  <button onClick={() => setEditingGoal(false)} className="text-xs text-[#6B6B6B]">Cancel</button>
+                </div>
+              ) : goalCompleted ? (
+                <>
+                  <div className="flex items-center gap-3 mb-3">
+                    <span className="font-[family-name:var(--font-playfair)] text-3xl font-bold text-[#E8599A]">
+                      {booksFinished}
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-[#E8599A]">🎉 Goal completed!</p>
+                      <p className="text-xs text-[#6B6B6B]">{booksFinished} of {effectiveGoal} books</p>
+                    </div>
+                  </div>
+                  <div className="progress-bar" style={{ height: "10px" }}>
+                    <div className="progress-bar-fill" style={{ width: "100%", height: "10px" }} />
+                  </div>
+                  <p className="text-xs text-[#6B6B6B] mt-2">{booksFinished} of {effectiveGoal} books read</p>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-end justify-between mb-3">
+                    <span className="font-[family-name:var(--font-playfair)] text-3xl font-bold text-[#E8599A]">
+                      {booksFinished}
+                    </span>
+                    <span className="text-sm text-[#6B6B6B]">of {effectiveGoal} books</span>
+                  </div>
+                  <div className="progress-bar" style={{ height: "10px" }}>
+                    <div className="progress-bar-fill" style={{ width: `${goalProgress}%`, height: "10px" }} />
+                  </div>
+                  <p className="text-xs text-[#6B6B6B] mt-2">
+                    {goalProgress}% complete · {Math.max(0, effectiveGoal - booksFinished)} to go
+                  </p>
+                </>
+              )}
             </Card>
           )}
 

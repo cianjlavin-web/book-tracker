@@ -61,6 +61,8 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
   const [editingSession, setEditingSession] = useState<Session | null>(null);
   const [editPages, setEditPages] = useState("");
   const [editMinutes, setEditMinutes] = useState("");
+  const [startDate, setStartDate] = useState<string | null>(null);
+  const [finishDate, setFinishDate] = useState<string | null>(null);
   const [addingSession, setAddingSession] = useState(false);
   const [newSessionDate, setNewSessionDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [newSessionPages, setNewSessionPages] = useState("");
@@ -81,6 +83,8 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
       setCurrentPage(data.current_page ?? 0);
       setTotalPages(bookData.books.total_pages);
       setStatus(data.status);
+      setStartDate(data.start_date ?? null);
+      setFinishDate(data.finish_date ?? null);
 
       // Fetch community rating + description via server route (cached in browser)
       try {
@@ -121,10 +125,8 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
         review: review || null,
         current_page: currentPage,
         status,
-        finish_date:
-          status === "finished" && !book?.finish_date
-            ? new Date().toISOString().split("T")[0]
-            : undefined,
+        start_date: startDate || null,
+        finish_date: finishDate || (status === "finished" ? new Date().toISOString().split("T")[0] : null),
       })
       .eq("id", id);
     setSaving(false);
@@ -257,6 +259,34 @@ export default function BookDetailPage({ params }: { params: Promise<{ id: strin
             </button>
           ))}
         </div>
+
+        {/* Reading dates */}
+        {(status === "reading" || status === "finished") && (
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <div>
+              <label className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1 block">Started</label>
+              <input
+                type="date"
+                value={startDate ?? ""}
+                max={new Date().toISOString().split("T")[0]}
+                onChange={(e) => setStartDate(e.target.value || null)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]"
+              />
+            </div>
+            {status === "finished" && (
+              <div>
+                <label className="text-xs text-[#6B6B6B] uppercase tracking-wide mb-1 block">Finished</label>
+                <input
+                  type="date"
+                  value={finishDate ?? ""}
+                  max={new Date().toISOString().split("T")[0]}
+                  onChange={(e) => setFinishDate(e.target.value || null)}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm text-[#1A1A1A] bg-white focus:outline-none focus:ring-2 focus:ring-[#E8599A]"
+                />
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Description */}
