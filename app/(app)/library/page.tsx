@@ -52,13 +52,36 @@ const SORT_OPTIONS: { key: SortKey; label: string }[] = [
 ];
 
 export default function LibraryPage() {
-  const [activeTab, setActiveTab] = useState<Status>("reading");
+  const [activeTab, setActiveTab] = useState<Status>(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("library_tab");
+      if (saved && ["reading", "finished", "want_to_read", "dnf"].includes(saved)) return saved as Status;
+    }
+    return "reading";
+  });
+
+  function handleTabChange(tab: Status) {
+    setActiveTab(tab);
+    sessionStorage.setItem("library_tab", tab);
+  }
   const [books, setBooks] = useState<UserBook[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [addingStatus, setAddingStatus] = useState<Status>("want_to_read");
-  const [sortKey, setSortKey] = useState<SortKey>("date_added");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [sortKey, setSortKey] = useState<SortKey>(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("library_sort_key");
+      if (saved && ["date_added", "date_finished", "published_year", "my_rating", "title", "community_rating"].includes(saved)) return saved as SortKey;
+    }
+    return "date_added";
+  });
+  const [sortDir, setSortDir] = useState<SortDir>(() => {
+    if (typeof window !== "undefined") {
+      const saved = sessionStorage.getItem("library_sort_dir");
+      if (saved === "asc" || saved === "desc") return saved;
+    }
+    return "desc";
+  });
   const [showSortMenu, setShowSortMenu] = useState(false);
   const [communityData, setCommunityData] = useState<Map<string, CommunityEntry>>(new Map());
   // Track which user_book ids have already been fetched so we don't re-fetch on re-renders
@@ -217,13 +240,13 @@ export default function LibraryPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs tabs={TABS} activeTab={activeTab} onChange={(id) => { setActiveTab(id as Status); setShowSortMenu(false); }} className="mb-3" />
+      <Tabs tabs={TABS} activeTab={activeTab} onChange={(id) => { handleTabChange(id as Status); setShowSortMenu(false); }} className="mb-3" />
 
       {/* Sort bar */}
       <div className="flex justify-end items-center gap-2 mb-3 relative">
         {/* Asc/Desc toggle */}
         <button
-          onClick={() => setSortDir((d) => d === "desc" ? "asc" : "desc")}
+          onClick={() => setSortDir((d) => { const next = d === "desc" ? "asc" : "desc"; sessionStorage.setItem("library_sort_dir", next); return next; })}
           title={sortDir === "desc" ? "Descending" : "Ascending"}
           className="flex items-center justify-center w-8 h-8 rounded-full bg-white/20 text-white/80 hover:bg-white/30 transition-colors"
         >
@@ -257,7 +280,7 @@ export default function LibraryPage() {
             {SORT_OPTIONS.map((opt) => (
               <button
                 key={opt.key}
-                onClick={() => { setSortKey(opt.key); setShowSortMenu(false); }}
+                onClick={() => { setSortKey(opt.key); sessionStorage.setItem("library_sort_key", opt.key); setShowSortMenu(false); }}
                 className={`w-full text-left text-sm px-4 py-2.5 transition-colors ${
                   sortKey === opt.key
                     ? "bg-[#FAE0EE] text-[#E8599A] font-medium"
