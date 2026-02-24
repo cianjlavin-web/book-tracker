@@ -46,7 +46,7 @@ export function GenreDonutChart({ data, selectedName, onSelect }: GenreDonutChar
             dataKey="value"
             style={{ cursor: onSelect ? "pointer" : "default" }}
             onClick={(payload) => {
-              const name = (payload as ChartPayload).name;
+              const name = (payload as unknown as ChartPayload).name;
               if (name && onSelect) onSelect(name);
             }}
           >

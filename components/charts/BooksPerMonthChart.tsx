@@ -50,7 +50,7 @@ export function BooksPerMonthChart({ data, selectedName, onSelect }: BooksPerMon
             radius={[8, 8, 0, 0]}
             style={{ cursor: onSelect ? "pointer" : "default" }}
             onClick={(payload) => {
-              const month = (payload as ChartPayload).month;
+              const month = (payload as unknown as ChartPayload).month;
               if (month && onSelect) onSelect(month);
             }}
           >

@@ -50,7 +50,7 @@ export function RatingDistributionChart({ data, selectedName, onSelect }: Rating
             radius={[8, 8, 0, 0]}
             style={{ cursor: onSelect ? "pointer" : "default" }}
             onClick={(payload) => {
-              const rating = (payload as ChartPayload).rating;
+              const rating = (payload as unknown as ChartPayload).rating;
               if (rating && onSelect) onSelect(rating);
             }}
           >

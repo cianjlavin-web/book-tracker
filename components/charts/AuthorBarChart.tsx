@@ -45,7 +45,7 @@ export function AuthorBarChart({ data, selectedName, onSelect }: AuthorBarChartP
             radius={[0, 8, 8, 0]}
             style={{ cursor: onSelect ? "pointer" : "default" }}
             onClick={(payload) => {
-              const name = (payload as ChartPayload).name;
+              const name = (payload as unknown as ChartPayload).name;
               if (name && onSelect) onSelect(name);
             }}
           >
