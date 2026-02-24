@@ -7,7 +7,8 @@ import { USER_ID } from "@/lib/user";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { THEMES, getTheme, applyTheme } from "@/lib/themes";
+import { THEMES } from "@/lib/themes";
+import { useTheme } from "@/components/ThemeProvider";
 
 interface Profile {
   id: string;
@@ -22,17 +23,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [activeTheme, setActiveTheme] = useState("rose");
-  useEffect(() => {
-    const saved = localStorage.getItem("app_theme");
-    if (saved) setActiveTheme(saved);
-  }, []);
-
-  function handleThemeChange(themeId: string) {
-    setActiveTheme(themeId);
-    localStorage.setItem("app_theme", themeId);
-    applyTheme(getTheme(themeId));
-  }
+  const { theme: activeThemeObj, setThemeById } = useTheme();
 
   const loadProfile = useCallback(async () => {
     const supabase = createClient();
@@ -117,16 +108,16 @@ export default function SettingsPage() {
               {THEMES.map((theme) => (
                 <button
                   key={theme.id}
-                  onClick={() => handleThemeChange(theme.id)}
+                  onClick={() => setThemeById(theme.id)}
                   className="flex flex-col items-center gap-1.5 transition-transform"
-                  style={{ transform: activeTheme === theme.id ? "scale(1.1)" : "scale(1)" }}
+                  style={{ transform: activeThemeObj.id === theme.id ? "scale(1.1)" : "scale(1)" }}
                   title={theme.name}
                 >
                   <div
                     className="w-12 h-12 rounded-full shadow-md transition-all"
                     style={{
                       background: `linear-gradient(135deg, ${theme.gradientFrom}, ${theme.gradientTo})`,
-                      outline: activeTheme === theme.id ? `3px solid ${theme.accent}` : "3px solid transparent",
+                      outline: activeThemeObj.id === theme.id ? `3px solid ${theme.accent}` : "3px solid transparent",
                       outlineOffset: "2px",
                     }}
                   />

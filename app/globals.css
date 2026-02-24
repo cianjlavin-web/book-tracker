@@ -5,12 +5,12 @@
   --color-pink-light: #F4A7CB;
   --color-pink-pale: #FAE0EE;
   --color-card: #F7F4F0;
-  --color-page-bg: #4D4465;
+  --color-page-bg: #3A314F;
+  --color-page-bg-light: #625876;
   --color-gradient-a: #E8599A;
   --color-gradient-b: #E87A50;
   --color-text: #1A1A1A;
   --color-muted: #6B6B6B;
-  --background: var(--color-page-bg);
   --foreground: var(--color-text);
 }
 
@@ -26,7 +26,8 @@
 }
 
 body {
-  background: var(--background);
+  background: linear-gradient(180deg, var(--color-page-bg-light) 0%, var(--color-page-bg) 100%);
+  background-attachment: fixed;
   color: var(--foreground);
 }
 

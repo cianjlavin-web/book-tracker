@@ -1,6 +1,7 @@
 "use client";
 
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { useTheme } from "@/components/ThemeProvider";
 
 interface RatingData {
   rating: string;
@@ -8,6 +9,8 @@ interface RatingData {
 }
 
 export function RatingDistributionChart({ data }: { data: RatingData[] }) {
+  const { theme } = useTheme();
+
   if (data.length === 0) {
     return <div className="h-48 flex items-center justify-center text-sm text-[#6B6B6B]">No ratings yet</div>;
   }
@@ -36,7 +39,7 @@ export function RatingDistributionChart({ data }: { data: RatingData[] }) {
           />
           <Bar dataKey="count" radius={[8, 8, 0, 0]}>
             {data.map((d, i) => (
-              <Cell key={i} fill={d.count === max ? "#E8599A" : "#F4A7CB"} />
+              <Cell key={i} fill={d.count === max ? theme.accent : theme.accentLight} />
             ))}
           </Bar>
         </BarChart>

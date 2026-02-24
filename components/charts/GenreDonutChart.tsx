@@ -1,15 +1,25 @@
 "use client";
 
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Legend } from "recharts";
+import { useTheme } from "@/components/ThemeProvider";
 
 interface GenreData {
   name: string;
   value: number;
 }
 
-const COLORS = ["#E8599A", "#F4A7CB", "#E87A50", "#FAE0EE", "#8B7D9B", "#B8A9C9", "#F7B2A5"];
-
 export function GenreDonutChart({ data }: { data: GenreData[] }) {
+  const { theme } = useTheme();
+  const COLORS = [
+    theme.accent,
+    theme.accentLight,
+    theme.gradientTo,
+    theme.accentPale,
+    "#9CA3AF",
+    "#D1D5DB",
+    "#6B7280",
+  ];
+
   if (data.length === 0) {
     return <div className="h-48 flex items-center justify-center text-sm text-[#6B6B6B]">No data yet</div>;
   }

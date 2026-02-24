@@ -150,19 +150,19 @@ function StarDisplay({ rating }: { rating: number }) {
     <div className="flex">
       {[1, 2, 3, 4, 5].map((star) => {
         const fill = Math.min(1, Math.max(0, rating - star + 1));
+        const gradId = `star-${star}-${rating}`;
         return (
-          <svg key={star} width="12" height="12" viewBox="0 0 24 24" className="text-[#E8599A]">
+          <svg key={star} width="12" height="12" viewBox="0 0 24 24">
             <defs>
-              <linearGradient id={`star-${star}-${rating}`} x1="0" x2="1" y1="0" y2="0">
-                <stop offset={`${fill * 100}%`} stopColor="#E8599A" />
-                <stop offset={`${fill * 100}%`} stopColor="#e5e7eb" />
+              <linearGradient id={gradId} x1="0" x2="1" y1="0" y2="0">
+                <stop offset={`${fill * 100}%`} style={{ stopColor: "var(--color-pink)" }} />
+                <stop offset={`${fill * 100}%`} style={{ stopColor: "#e5e7eb" }} />
               </linearGradient>
             </defs>
             <polygon
               points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
-              fill={`url(#star-${star}-${rating})`}
-              stroke="#E8599A"
-              strokeWidth="1"
+              fill={`url(#${gradId})`}
+              style={{ stroke: "var(--color-pink)", strokeWidth: "1" }}
             />
           </svg>
         );
