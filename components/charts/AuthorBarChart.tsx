@@ -8,7 +8,15 @@ interface AuthorData {
   books: number;
 }
 
-export function AuthorBarChart({ data }: { data: AuthorData[] }) {
+interface AuthorBarChartProps {
+  data: AuthorData[];
+  selectedName?: string;
+  onSelect?: (name: string) => void;
+}
+
+type ChartPayload = { name?: string; [key: string]: unknown };
+
+export function AuthorBarChart({ data, selectedName, onSelect }: AuthorBarChartProps) {
   const { theme } = useTheme();
 
   if (data.length === 0) {
@@ -23,19 +31,30 @@ export function AuthorBarChart({ data }: { data: AuthorData[] }) {
           <YAxis
             type="category"
             dataKey="name"
-            tick={{ fontSize: 11, fill: "#6B6B6B" }}
+            tick={{ fontSize: 11, fill: "var(--color-muted)" }}
             width={100}
             tickLine={false}
             axisLine={false}
           />
           <Tooltip
-            contentStyle={{ background: "#F7F4F0", border: "none", borderRadius: "12px", fontSize: "12px" }}
+            contentStyle={{ background: "var(--color-card)", border: "none", borderRadius: "12px", fontSize: "12px", color: "var(--color-text)" }}
             formatter={(v) => [`${v ?? 0} books`, "Books"]}
           />
-          <Bar dataKey="books" radius={[0, 8, 8, 0]}>
-            {data.map((_, i) => (
-              <Cell key={i} fill={i === 0 ? theme.accent : theme.accentLight} />
-            ))}
+          <Bar
+            dataKey="books"
+            radius={[0, 8, 8, 0]}
+            style={{ cursor: onSelect ? "pointer" : "default" }}
+            onClick={(payload) => {
+              const name = (payload as ChartPayload).name;
+              if (name && onSelect) onSelect(name);
+            }}
+          >
+            {data.map((entry, i) => {
+              const fill = selectedName
+                ? entry.name === selectedName ? theme.accent : theme.accentPale
+                : i === 0 ? theme.accent : theme.accentLight;
+              return <Cell key={i} fill={fill} />;
+            })}
           </Bar>
         </BarChart>
       </ResponsiveContainer>

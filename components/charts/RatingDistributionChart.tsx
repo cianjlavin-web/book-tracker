@@ -8,7 +8,15 @@ interface RatingData {
   count: number;
 }
 
-export function RatingDistributionChart({ data }: { data: RatingData[] }) {
+interface RatingDistributionChartProps {
+  data: RatingData[];
+  selectedName?: string;
+  onSelect?: (rating: string) => void;
+}
+
+type ChartPayload = { rating?: string; [key: string]: unknown };
+
+export function RatingDistributionChart({ data, selectedName, onSelect }: RatingDistributionChartProps) {
   const { theme } = useTheme();
 
   if (data.length === 0) {
@@ -23,24 +31,35 @@ export function RatingDistributionChart({ data }: { data: RatingData[] }) {
         <BarChart data={data} margin={{ left: -20, right: 8 }}>
           <XAxis
             dataKey="rating"
-            tick={{ fontSize: 11, fill: "#6B6B6B" }}
+            tick={{ fontSize: 11, fill: "var(--color-muted)" }}
             tickLine={false}
             axisLine={false}
           />
           <YAxis
-            tick={{ fontSize: 11, fill: "#6B6B6B" }}
+            tick={{ fontSize: 11, fill: "var(--color-muted)" }}
             tickLine={false}
             axisLine={false}
             allowDecimals={false}
           />
           <Tooltip
-            contentStyle={{ background: "#F7F4F0", border: "none", borderRadius: "12px", fontSize: "12px" }}
+            contentStyle={{ background: "var(--color-card)", border: "none", borderRadius: "12px", fontSize: "12px", color: "var(--color-text)" }}
             formatter={(v) => [`${v ?? 0} books`, "Books"]}
           />
-          <Bar dataKey="count" radius={[8, 8, 0, 0]}>
-            {data.map((d, i) => (
-              <Cell key={i} fill={d.count === max ? theme.accent : theme.accentLight} />
-            ))}
+          <Bar
+            dataKey="count"
+            radius={[8, 8, 0, 0]}
+            style={{ cursor: onSelect ? "pointer" : "default" }}
+            onClick={(payload) => {
+              const rating = (payload as ChartPayload).rating;
+              if (rating && onSelect) onSelect(rating);
+            }}
+          >
+            {data.map((d, i) => {
+              const fill = selectedName
+                ? d.rating === selectedName ? theme.accent : theme.accentPale
+                : d.count === max ? theme.accent : theme.accentLight;
+              return <Cell key={i} fill={fill} />;
+            })}
           </Bar>
         </BarChart>
       </ResponsiveContainer>

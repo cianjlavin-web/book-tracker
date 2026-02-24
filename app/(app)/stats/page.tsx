@@ -9,6 +9,8 @@ import { Modal } from "@/components/ui/Modal";
 import { Button } from "@/components/ui/Button";
 import { GenreDonutChart } from "@/components/charts/GenreDonutChart";
 import { AuthorBarChart } from "@/components/charts/AuthorBarChart";
+import Link from "next/link";
+import Image from "next/image";
 import { BooksPerMonthChart } from "@/components/charts/BooksPerMonthChart";
 import { RatingDistributionChart } from "@/components/charts/RatingDistributionChart";
 import { StreakCalendar } from "@/components/charts/StreakCalendar";
@@ -18,6 +20,20 @@ type Period = "Monthly" | "Yearly" | "All-time";
 
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DEFAULT_PAST_GOALS: Record<number, number> = { 2024: 20, 2025: 50 };
+
+interface FinishedBook {
+  id: string;
+  rating: number | null;
+  finish_date: string | null;
+  start_date: string | null;
+  books: {
+    title: string | null;
+    author: string | null;
+    genres: string[] | null;
+    total_pages: number | null;
+    cover_url: string | null;
+  } | null;
+}
 const FULL_MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
@@ -62,6 +78,13 @@ export default function StatsPage() {
   const [longestBook, setLongestBook] = useState<BookRecord | null>(null);
   const [longestSession, setLongestSession] = useState<SessionRecord | null>(null);
   const [shortestSession, setShortestSession] = useState<SessionRecord | null>(null);
+
+  // Chart drill-down
+  const [rawFinishedBooks, setRawFinishedBooks] = useState<FinishedBook[]>([]);
+  const [selectedGenre, setSelectedGenre] = useState<string | null>(null);
+  const [selectedAuthor, setSelectedAuthor] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
+  const [selectedRating, setSelectedRating] = useState<string | null>(null);
 
   // Goal editing
   const [editingGoal, setEditingGoal] = useState(false);
@@ -159,6 +182,10 @@ export default function StatsPage() {
 
   const loadStats = useCallback(async () => {
     setLoading(true);
+    setSelectedGenre(null);
+    setSelectedAuthor(null);
+    setSelectedMonth(null);
+    setSelectedRating(null);
     const supabase = createClient();
     const today = new Date();
 
@@ -172,24 +199,18 @@ export default function StatsPage() {
       range = { from, to };
     }
 
-    // Finished books — include start_date and title for new stats
+    // Finished books
     let finishedQuery = supabase
       .from("user_books")
-      .select("rating, finish_date, start_date, books(title, author, genres, total_pages)")
+      .select("id, rating, finish_date, start_date, books(title, author, genres, total_pages, cover_url)")
       .eq("user_id", USER_ID)
       .eq("status", "finished");
     if (range) finishedQuery = finishedQuery.gte("finish_date", range.from).lte("finish_date", range.to);
     const { data: finished } = await finishedQuery;
 
     setBooksFinished(finished?.length ?? 0);
-
-    interface FinishedBook {
-      rating: number | null;
-      finish_date: string | null;
-      start_date: string | null;
-      books: { title: string | null; author: string | null; genres: string[] | null; total_pages: number | null } | null;
-    }
     const finishedTyped = (finished ?? []) as unknown as FinishedBook[];
+    setRawFinishedBooks(finishedTyped);
 
     // Genre aggregation
     const genreCounts: Record<string, number> = {};
@@ -509,6 +530,25 @@ export default function StatsPage() {
     setEditingGoal(false);
   }
 
+  const drillBooks: FinishedBook[] = selectedGenre
+    ? rawFinishedBooks.filter((ub) => ub.books?.genres?.includes(selectedGenre))
+    : selectedAuthor
+    ? rawFinishedBooks.filter((ub) => ub.books?.author === selectedAuthor)
+    : selectedMonth
+    ? rawFinishedBooks.filter((ub) => {
+        if (!ub.finish_date) return false;
+        const d = new Date(ub.finish_date + "T12:00:00");
+        return /^\d{4}$/.test(selectedMonth)
+          ? String(d.getFullYear()) === selectedMonth
+          : MONTH_NAMES[d.getMonth()] === selectedMonth;
+      })
+    : selectedRating
+    ? rawFinishedBooks.filter((ub) => {
+        if (ub.rating == null) return false;
+        return `★${Number(ub.rating).toFixed(1)}` === selectedRating;
+      })
+    : [];
+
   const effectiveGoal =
     selectedYear === currentYear
       ? yearlyGoal
@@ -689,7 +729,43 @@ export default function StatsPage() {
               <p className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[#E8599A] mb-3">
                 {period === "Yearly" ? "Month" : "Year"}
               </p>
-              <BooksPerMonthChart data={booksPerPeriodData} />
+              <BooksPerMonthChart
+                data={booksPerPeriodData}
+                selectedName={selectedMonth ?? undefined}
+                onSelect={(month) => {
+                  setSelectedMonth((prev) => prev === month ? null : month);
+                  setSelectedGenre(null); setSelectedAuthor(null); setSelectedRating(null);
+                }}
+              />
+              {selectedMonth && drillBooks.length > 0 && (
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-[#6B6B6B] uppercase tracking-wide">{selectedMonth} · {drillBooks.length} book{drillBooks.length !== 1 ? "s" : ""}</p>
+                    <button onClick={() => setSelectedMonth(null)} className="text-xs text-[#6B6B6B] hover:text-[#1A1A1A]">Collapse</button>
+                  </div>
+                  <div className="flex gap-3 overflow-x-auto pb-2">
+                    {drillBooks.map((ub) => {
+                      const title = ub.books?.title ?? "Unknown";
+                      const author = ub.books?.author ?? "";
+                      return (
+                        <Link key={ub.id} href={`/books/${ub.id}`} className="flex-shrink-0 w-[72px] flex flex-col">
+                          <div className="w-[72px] h-[100px] rounded-xl overflow-hidden bg-gray-200 shadow-sm">
+                            {ub.books?.cover_url ? (
+                              <Image src={ub.books.cover_url} alt={title} width={72} height={100} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#F4A7CB] to-[#E8599A]">
+                                <span className="text-white text-xs font-bold">{title.slice(0, 2).toUpperCase()}</span>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-[10px] font-medium text-[#1A1A1A] mt-1.5 line-clamp-2 leading-tight">{title}</p>
+                          <p className="text-[9px] text-[#6B6B6B] line-clamp-1 mt-0.5">{author}</p>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 
@@ -770,7 +846,43 @@ export default function StatsPage() {
               <p className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[#E8599A] mb-3">
                 Genres
               </p>
-              <GenreDonutChart data={genreData} />
+              <GenreDonutChart
+                data={genreData}
+                selectedName={selectedGenre ?? undefined}
+                onSelect={(name) => {
+                  setSelectedGenre((prev) => prev === name ? null : name);
+                  setSelectedAuthor(null);
+                }}
+              />
+              {selectedGenre && drillBooks.length > 0 && (
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-[#6B6B6B] uppercase tracking-wide">{selectedGenre} · {drillBooks.length} book{drillBooks.length !== 1 ? "s" : ""}</p>
+                    <button onClick={() => setSelectedGenre(null)} className="text-xs text-[#6B6B6B] hover:text-[#1A1A1A]">Collapse</button>
+                  </div>
+                  <div className="flex gap-3 overflow-x-auto pb-2">
+                    {drillBooks.map((ub) => {
+                      const title = ub.books?.title ?? "Unknown";
+                      const author = ub.books?.author ?? "";
+                      return (
+                        <Link key={ub.id} href={`/books/${ub.id}`} className="flex-shrink-0 w-[72px] flex flex-col">
+                          <div className="w-[72px] h-[100px] rounded-xl overflow-hidden bg-gray-200 shadow-sm">
+                            {ub.books?.cover_url ? (
+                              <Image src={ub.books.cover_url} alt={title} width={72} height={100} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#F4A7CB] to-[#E8599A]">
+                                <span className="text-white text-xs font-bold">{title.slice(0, 2).toUpperCase()}</span>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-[10px] font-medium text-[#1A1A1A] mt-1.5 line-clamp-2 leading-tight">{title}</p>
+                          <p className="text-[9px] text-[#6B6B6B] line-clamp-1 mt-0.5">{author}</p>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 
@@ -781,7 +893,41 @@ export default function StatsPage() {
               <p className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[#E8599A] mb-3">
                 Authors
               </p>
-              <AuthorBarChart data={authorData} />
+              <AuthorBarChart
+                data={authorData}
+                selectedName={selectedAuthor ?? undefined}
+                onSelect={(name) => {
+                  setSelectedAuthor((prev) => prev === name ? null : name);
+                  setSelectedGenre(null);
+                }}
+              />
+              {selectedAuthor && drillBooks.length > 0 && (
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-[#6B6B6B] uppercase tracking-wide">{selectedAuthor} · {drillBooks.length} book{drillBooks.length !== 1 ? "s" : ""}</p>
+                    <button onClick={() => setSelectedAuthor(null)} className="text-xs text-[#6B6B6B] hover:text-[#1A1A1A]">Collapse</button>
+                  </div>
+                  <div className="flex gap-3 overflow-x-auto pb-2">
+                    {drillBooks.map((ub) => {
+                      const title = ub.books?.title ?? "Unknown";
+                      return (
+                        <Link key={ub.id} href={`/books/${ub.id}`} className="flex-shrink-0 w-[72px] flex flex-col">
+                          <div className="w-[72px] h-[100px] rounded-xl overflow-hidden bg-gray-200 shadow-sm">
+                            {ub.books?.cover_url ? (
+                              <Image src={ub.books.cover_url} alt={title} width={72} height={100} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#F4A7CB] to-[#E8599A]">
+                                <span className="text-white text-xs font-bold">{title.slice(0, 2).toUpperCase()}</span>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-[10px] font-medium text-[#1A1A1A] mt-1.5 line-clamp-2 leading-tight">{title}</p>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 
@@ -792,7 +938,43 @@ export default function StatsPage() {
               <p className="font-[family-name:var(--font-playfair)] text-2xl font-bold text-[#E8599A] mb-3">
                 Ratings
               </p>
-              <RatingDistributionChart data={ratingData} />
+              <RatingDistributionChart
+                data={ratingData}
+                selectedName={selectedRating ?? undefined}
+                onSelect={(rating) => {
+                  setSelectedRating((prev) => prev === rating ? null : rating);
+                  setSelectedGenre(null); setSelectedAuthor(null); setSelectedMonth(null);
+                }}
+              />
+              {selectedRating && drillBooks.length > 0 && (
+                <div className="mt-4 border-t border-gray-100 pt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs text-[#6B6B6B] uppercase tracking-wide">{selectedRating} · {drillBooks.length} book{drillBooks.length !== 1 ? "s" : ""}</p>
+                    <button onClick={() => setSelectedRating(null)} className="text-xs text-[#6B6B6B] hover:text-[#1A1A1A]">Collapse</button>
+                  </div>
+                  <div className="flex gap-3 overflow-x-auto pb-2">
+                    {drillBooks.map((ub) => {
+                      const title = ub.books?.title ?? "Unknown";
+                      const author = ub.books?.author ?? "";
+                      return (
+                        <Link key={ub.id} href={`/books/${ub.id}`} className="flex-shrink-0 w-[72px] flex flex-col">
+                          <div className="w-[72px] h-[100px] rounded-xl overflow-hidden bg-gray-200 shadow-sm">
+                            {ub.books?.cover_url ? (
+                              <Image src={ub.books.cover_url} alt={title} width={72} height={100} className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-[#F4A7CB] to-[#E8599A]">
+                                <span className="text-white text-xs font-bold">{title.slice(0, 2).toUpperCase()}</span>
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-[10px] font-medium text-[#1A1A1A] mt-1.5 line-clamp-2 leading-tight">{title}</p>
+                          <p className="text-[9px] text-[#6B6B6B] line-clamp-1 mt-0.5">{author}</p>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </Card>
           )}
 

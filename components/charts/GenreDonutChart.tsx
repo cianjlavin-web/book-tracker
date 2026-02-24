@@ -8,7 +8,15 @@ interface GenreData {
   value: number;
 }
 
-export function GenreDonutChart({ data }: { data: GenreData[] }) {
+interface GenreDonutChartProps {
+  data: GenreData[];
+  selectedName?: string;
+  onSelect?: (name: string) => void;
+}
+
+type ChartPayload = { name?: string; [key: string]: unknown };
+
+export function GenreDonutChart({ data, selectedName, onSelect }: GenreDonutChartProps) {
   const { theme } = useTheme();
   const COLORS = [
     theme.accent,
@@ -25,29 +33,38 @@ export function GenreDonutChart({ data }: { data: GenreData[] }) {
   }
 
   return (
-    <div className="h-48">
-      <ResponsiveContainer width="100%" height="100%">
+    <div>
+      <ResponsiveContainer width="100%" height={240}>
         <PieChart>
           <Pie
             data={data}
             cx="50%"
-            cy="50%"
+            cy="45%"
             innerRadius={50}
             outerRadius={75}
             paddingAngle={3}
             dataKey="value"
+            style={{ cursor: onSelect ? "pointer" : "default" }}
+            onClick={(payload) => {
+              const name = (payload as ChartPayload).name;
+              if (name && onSelect) onSelect(name);
+            }}
           >
-            {data.map((_, index) => (
-              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+            {data.map((entry, index) => (
+              <Cell
+                key={`cell-${index}`}
+                fill={COLORS[index % COLORS.length]}
+                opacity={selectedName && selectedName !== entry.name ? 0.35 : 1}
+              />
             ))}
           </Pie>
           <Tooltip
-            contentStyle={{ background: "#F7F4F0", border: "none", borderRadius: "12px", fontSize: "12px" }}
+            contentStyle={{ background: "var(--color-card)", border: "none", borderRadius: "12px", fontSize: "12px", color: "var(--color-text)" }}
           />
           <Legend
             iconType="circle"
             iconSize={8}
-            formatter={(value) => <span style={{ fontSize: "11px", color: "#6B6B6B" }}>{value}</span>}
+            formatter={(value) => <span style={{ fontSize: "11px", color: "var(--color-muted)" }}>{value}</span>}
           />
         </PieChart>
       </ResponsiveContainer>
