@@ -17,8 +17,8 @@ export const THEMES: Theme[] = [
     accent: "#E8599A",
     accentLight: "#F4A7CB",
     accentPale: "#FAE0EE",
-    pageBg: "#3A314F",
-    pageBgLight: "#625876",
+    pageBg: "#2A1728",
+    pageBgLight: "#4A2840",
     gradientFrom: "#E8599A",
     gradientTo: "#E87A50",
   },
@@ -84,4 +84,4 @@ export function applyTheme(theme: Theme) {
 }
 
 // Serialized for inline <script> anti-FOUC (must stay in sync with THEMES above)
-export const THEME_SCRIPT = `(function(){var t={rose:{a:'#E8599A',al:'#F4A7CB',ap:'#FAE0EE',bg:'#3A314F',bgl:'#625876',gf:'#E8599A',gt:'#E87A50'},ocean:{a:'#0EA5E9',al:'#7DD3FC',ap:'#E0F2FE',bg:'#0D2235',bgl:'#244D6A',gf:'#0EA5E9',gt:'#6366F1'},forest:{a:'#22C55E',al:'#86EFAC',ap:'#DCFCE7',bg:'#0D1A14',bgl:'#234030',gf:'#22C55E',gt:'#10B981'},sunset:{a:'#F97316',al:'#FDBA74',ap:'#FFF7ED',bg:'#1F0E04',bgl:'#523014',gf:'#F97316',gt:'#EF4444'},violet:{a:'#A855F7',al:'#D8B4FE',ap:'#F3E8FF',bg:'#180E2A',bgl:'#3D2665',gf:'#A855F7',gt:'#EC4899'}};var id=localStorage.getItem('app_theme')||'rose';var th=t[id]||t.rose;var r=document.documentElement;r.style.setProperty('--color-pink',th.a);r.style.setProperty('--color-pink-light',th.al);r.style.setProperty('--color-pink-pale',th.ap);r.style.setProperty('--color-page-bg',th.bg);r.style.setProperty('--color-page-bg-light',th.bgl);r.style.setProperty('--color-gradient-a',th.gf);r.style.setProperty('--color-gradient-b',th.gt);})();`;
+export const THEME_SCRIPT = `(function(){var t={rose:{a:'#E8599A',al:'#F4A7CB',ap:'#FAE0EE',bg:'#2A1728',bgl:'#4A2840',gf:'#E8599A',gt:'#E87A50'},ocean:{a:'#0EA5E9',al:'#7DD3FC',ap:'#E0F2FE',bg:'#0D2235',bgl:'#244D6A',gf:'#0EA5E9',gt:'#6366F1'},forest:{a:'#22C55E',al:'#86EFAC',ap:'#DCFCE7',bg:'#0D1A14',bgl:'#234030',gf:'#22C55E',gt:'#10B981'},sunset:{a:'#F97316',al:'#FDBA74',ap:'#FFF7ED',bg:'#1F0E04',bgl:'#523014',gf:'#F97316',gt:'#EF4444'},violet:{a:'#A855F7',al:'#D8B4FE',ap:'#F3E8FF',bg:'#180E2A',bgl:'#3D2665',gf:'#A855F7',gt:'#EC4899'}};var id=localStorage.getItem('app_theme')||'rose';var th=t[id]||t.rose;var r=document.documentElement;r.style.setProperty('--color-pink',th.a);r.style.setProperty('--color-pink-light',th.al);r.style.setProperty('--color-pink-pale',th.ap);r.style.setProperty('--color-page-bg',th.bg);r.style.setProperty('--color-page-bg-light',th.bgl);r.style.setProperty('--color-gradient-a',th.gf);r.style.setProperty('--color-gradient-b',th.gt);})();`;
